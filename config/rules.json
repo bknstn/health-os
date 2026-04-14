@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "thresholds": {
+    "readiness_high": 85,
+    "readiness_mid": 75,
+    "sleep_high": 80,
+    "sleep_mid": 70,
+    "hrv_delta_ok": -10,
+    "resting_hr_delta_ok": 3,
+    "rpe_heavy": 9,
+    "soreness_heavy": 4
+  },
+  "weights": {
+    "readiness_high": 2,
+    "readiness_mid": 1,
+    "readiness_low": -2,
+    "sleep_high": 2,
+    "sleep_mid": 1,
+    "sleep_low": -2,
+    "hrv_ok": 1,
+    "hrv_bad": -1,
+    "rhr_ok": 1,
+    "rhr_bad": -1,
+    "rpe_penalty": -1,
+    "soreness_penalty": -1
+  },
+  "cutoffs": {
+    "full_min_score": 4,
+    "base_min_score": 1
+  },
+  "light_mode": {
+    "load_multiplier": 0.875,
+    "set_reduction": 1
+  }
+}

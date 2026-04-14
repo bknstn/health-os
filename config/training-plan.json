@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "days": {
+    "A": [
+      {
+        "exercise_key": "squat",
+        "exercise_name": "Squat",
+        "movement_pattern": "squat",
+        "sets": 4,
+        "reps_min": 5,
+        "reps_max": 5,
+        "progression_type": "upper_lower_load",
+        "load_tier": "lower",
+        "increment_kg": 5,
+        "optional": false,
+        "notes": "Technique and control first."
+      },
+      {
+        "exercise_key": "bench_press",
+        "exercise_name": "Bench Press",
+        "movement_pattern": "horizontal_push",
+        "sets": 4,
+        "reps_min": 5,
+        "reps_max": 5,
+        "progression_type": "upper_lower_load",
+        "load_tier": "upper",
+        "increment_kg": 2.5,
+        "optional": false,
+        "notes": "Stable bar path."
+      },
+      {
+        "exercise_key": "romanian_deadlift",
+        "exercise_name": "Romanian Deadlift",
+        "movement_pattern": "hinge",
+        "sets": 3,
+        "reps_min": 6,
+        "reps_max": 8,
+        "progression_type": "upper_lower_load",
+        "load_tier": "lower",
+        "increment_kg": 5,
+        "optional": false,
+        "notes": "Controlled eccentric."
+      },
+      {
+        "exercise_key": "bulgarian_split_squat",
+        "exercise_name": "Bulgarian Split Squat",
+        "movement_pattern": "single_leg",
+        "sets": 3,
+        "reps_min": 8,
+        "reps_max": 8,
+        "progression_type": "reps_first",
+        "load_tier": "lower",
+        "increment_kg": 2.5,
+        "optional": false,
+        "notes": "Balance and knee control."
+      },
+      {
+        "exercise_key": "core",
+        "exercise_name": "Core",
+        "movement_pattern": "core",
+        "sets": 3,
+        "reps_min": 1,
+        "reps_max": 1,
+        "progression_type": "quality_first",
+        "load_tier": "bodyweight",
+        "increment_kg": 0,
+        "optional": false,
+        "notes": "Anti-rotation or plank hold."
+      }
+    ],
+    "B": [
+      {
+        "exercise_key": "deadlift",
+        "exercise_name": "Deadlift",
+        "movement_pattern": "hinge",
+        "sets": 3,
+        "reps_min": 5,
+        "reps_max": 5,
+        "progression_type": "upper_lower_load",
+        "load_tier": "lower",
+        "increment_kg": 5,
+        "optional": false,
+        "notes": "Do not take to failure."
+      },
+      {
+        "exercise_key": "pullups",
+        "exercise_name": "Pull-ups or Lat Pulldown",
+        "movement_pattern": "vertical_pull",
+        "sets": 4,
+        "reps_min": 6,
+        "reps_max": 10,
+        "progression_type": "reps_first",
+        "load_tier": "bodyweight",
+        "increment_kg": 2.5,
+        "optional": false,
+        "notes": "Full range of motion."
+      },
+      {
+        "exercise_key": "standing_press",
+        "exercise_name": "Standing Barbell Press",
+        "movement_pattern": "vertical_push",
+        "sets": 3,
+        "reps_min": 5,
+        "reps_max": 6,
+        "progression_type": "upper_lower_load",
+        "load_tier": "upper",
+        "increment_kg": 2.5,
+        "optional": false,
+        "notes": "No lower-back overextension."
+      },
+      {
+        "exercise_key": "barbell_row",
+        "exercise_name": "Barbell Row",
+        "movement_pattern": "horizontal_pull",
+        "sets": 3,
+        "reps_min": 6,
+        "reps_max": 8,
+        "progression_type": "upper_lower_load",
+        "load_tier": "upper",
+        "increment_kg": 2.5,
+        "optional": false,
+        "notes": "Stable torso."
+      },
+      {
+        "exercise_key": "kettlebell_swing",
+        "exercise_name": "Kettlebell Swing",
+        "movement_pattern": "power",
+        "sets": 3,
+        "reps_min": 12,
+        "reps_max": 15,
+        "progression_type": "quality_first",
+        "load_tier": "lower",
+        "increment_kg": 0,
+        "optional": false,
+        "notes": "Explosive hinge."
+      }
+    ]
+  }
+}
