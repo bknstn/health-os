@@ -1,0 +1,22 @@
+{
+  "date": "2026-04-14",
+  "readiness_score": 68,
+  "sleep_score": 64,
+  "hrv": 41,
+  "hrv_baseline_28d": 52,
+  "resting_hr": 58,
+  "resting_hr_baseline_28d": 52,
+  "sleep_efficiency": 81,
+  "total_sleep_minutes": 372,
+  "temperature_deviation": 0.4,
+  "source_sync_time": "2026-04-14T06:45:00+02:00",
+  "raw_metrics": {
+    "readiness_score": 68,
+    "sleep_score": 64,
+    "hrv": 41,
+    "resting_hr": 58,
+    "sleep_efficiency": 81,
+    "total_sleep_minutes": 372,
+    "temperature_deviation": 0.4
+  }
+}

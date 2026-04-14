@@ -1,0 +1,7 @@
+node_modules/
+.health-os/
+coverage/
+*.log
+__pycache__/
+.DS_Store
+nanoclaw/
