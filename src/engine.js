@@ -67,7 +67,8 @@ export function localDateString(date = new Date()) {
 export function initialiseWorkspace(paths, repoRoot) {
   const defaults = [
     ['training-plan.json', paths.trainingPlanFile],
-    ['rules.json', paths.rulesFile]
+    ['rules.json', paths.rulesFile],
+    ['exercise-settings.json', paths.exerciseSettingsFile]
   ];
 
   for (const [fileName, targetPath] of defaults) {
@@ -102,7 +103,14 @@ export function loadRules(paths) {
   return readJson(paths.rulesFile);
 }
 
+export function loadExerciseSettings(paths) {
+  return readJson(paths.exerciseSettingsFile).exercises;
+}
+
 function parseNumber(value, fallback = 0) {
+  if (value === '' || value === undefined || value === null) {
+    return fallback;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -206,12 +214,16 @@ function findExerciseHistory(exerciseLogs, exerciseKey) {
     .sort((left, right) => right.session_date.localeCompare(left.session_date));
 }
 
-function computeBaseTarget(planEntry, exerciseLogs) {
+function computeBaseTarget(planEntry, exerciseLogs, exerciseSettings) {
   const history = findExerciseHistory(exerciseLogs, planEntry.exercise_key);
   const last = history[0];
   const previous = history[1];
   if (!last) {
-    return '';
+    const configuredWeight = parseNumber(
+      exerciseSettings?.[planEntry.exercise_key]?.working_weight_kg,
+      NaN
+    );
+    return Number.isFinite(configuredWeight) ? String(configuredWeight) : '';
   }
 
   const lastWeight = parseNumber(last.top_set_weight || last.weight, NaN);
@@ -242,6 +254,7 @@ function computeBaseTarget(planEntry, exerciseLogs) {
 export function buildNextWorkout(paths, dateString = localDateString()) {
   const trainingPlan = loadTrainingPlan(paths);
   const rules = loadRules(paths);
+  const exerciseSettings = loadExerciseSettings(paths);
   const workoutSessions = readCsv(paths.workoutSessionsFile);
   const exerciseLogs = readCsv(paths.exerciseLogsFile);
   const dailyState = readCsv(paths.dailyStateFile);
@@ -250,7 +263,7 @@ export function buildNextWorkout(paths, dateString = localDateString()) {
   const mode = currentState?.recommended_mode || 'BASE';
   const dayType = determineNextDayType(workoutSessions);
   const exercises = trainingPlan[dayType].map((entry) => {
-    const baseTarget = computeBaseTarget(entry, exerciseLogs);
+    const baseTarget = computeBaseTarget(entry, exerciseLogs, exerciseSettings);
     const numericTarget = parseNumber(baseTarget, NaN);
     let adjustedTarget = baseTarget;
     if (mode === 'LIGHT' && Number.isFinite(numericTarget)) {
@@ -277,6 +290,20 @@ export function buildNextWorkout(paths, dateString = localDateString()) {
     dayType,
     exercises
   };
+}
+
+export function setWorkingWeight(paths, exerciseKey, weightKg, incrementKg) {
+  const file = readJson(paths.exerciseSettingsFile);
+  if (!file.exercises[exerciseKey]) {
+    throw new Error(`Unknown exercise key: ${exerciseKey}`);
+  }
+
+  file.exercises[exerciseKey].working_weight_kg = weightKg;
+  if (incrementKg !== undefined) {
+    file.exercises[exerciseKey].increment_kg = incrementKg;
+  }
+
+  fs.writeFileSync(paths.exerciseSettingsFile, `${JSON.stringify(file, null, 2)}\n`, 'utf8');
 }
 
 function completedAsPlanned(planEntry, sets, actualMode) {

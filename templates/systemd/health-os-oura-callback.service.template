@@ -1,0 +1,13 @@
+[Unit]
+Description=health-os Oura OAuth callback listener
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__RUN_AS_USER__
+Group=__RUN_AS_GROUP__
+WorkingDirectory=__HEALTH_OS_ROOT__
+EnvironmentFile=__ENV_FILE__
+ExecStart=__HEALTH_OS_ROOT__/scripts/oura-listen-callback.sh --listen-host __CALLBACK_HOST__ --listen-port __CALLBACK_PORT__
+Restart=no

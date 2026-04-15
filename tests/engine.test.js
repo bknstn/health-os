@@ -10,7 +10,8 @@ import {
   buildNextWorkout,
   ingestDailyState,
   initialiseWorkspace,
-  modeFromMetrics
+  modeFromMetrics,
+  setWorkingWeight
 } from '../src/engine.js';
 
 function makeWorkspace() {
@@ -83,4 +84,17 @@ test('ingestDailyState stores a FULL recommendation for strong recovery', () => 
     }
   });
   assert.equal(decision.mode, 'FULL');
+});
+
+test('next workout uses configured starting weights when there is no history', () => {
+  const paths = makeWorkspace();
+  setWorkingWeight(paths, 'squat', 80);
+  setWorkingWeight(paths, 'bench_press', 60);
+
+  const nextWorkout = buildNextWorkout(paths, '2026-04-13');
+  const squat = nextWorkout.exercises.find((exercise) => exercise.exercise_key === 'squat');
+  const bench = nextWorkout.exercises.find((exercise) => exercise.exercise_key === 'bench_press');
+
+  assert.equal(squat.target_weight, '80');
+  assert.equal(bench.target_weight, '60');
 });

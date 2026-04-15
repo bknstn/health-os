@@ -17,6 +17,7 @@ export function buildPaths(groupRootArg) {
     artifactsDir: path.join(trackerRoot, 'artifacts'),
     trainingPlanFile: path.join(trackerRoot, 'config', 'training-plan.json'),
     rulesFile: path.join(trackerRoot, 'config', 'rules.json'),
+    exerciseSettingsFile: path.join(trackerRoot, 'config', 'exercise-settings.json'),
     workoutSessionsFile: path.join(trackerRoot, 'data', 'workout_sessions.csv'),
     exerciseLogsFile: path.join(trackerRoot, 'data', 'exercise_logs.csv'),
     recoverySnapshotsFile: path.join(trackerRoot, 'data', 'recovery_snapshots.csv'),
