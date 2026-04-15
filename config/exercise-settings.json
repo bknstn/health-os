@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "exercises": {
+    "squat": {
+      "working_weight_kg": "",
+      "increment_kg": 5
+    },
+    "bench_press": {
+      "working_weight_kg": "",
+      "increment_kg": 2.5
+    },
+    "romanian_deadlift": {
+      "working_weight_kg": "",
+      "increment_kg": 5
+    },
+    "bulgarian_split_squat": {
+      "working_weight_kg": "",
+      "increment_kg": 2.5
+    },
+    "core": {
+      "working_weight_kg": "",
+      "increment_kg": 0
+    },
+    "deadlift": {
+      "working_weight_kg": "",
+      "increment_kg": 5
+    },
+    "pullups": {
+      "working_weight_kg": "",
+      "increment_kg": 2.5
+    },
+    "standing_press": {
+      "working_weight_kg": "",
+      "increment_kg": 2.5
+    },
+    "barbell_row": {
+      "working_weight_kg": "",
+      "increment_kg": 2.5
+    },
+    "kettlebell_swing": {
+      "working_weight_kg": "",
+      "increment_kg": 0
+    }
+  }
+}

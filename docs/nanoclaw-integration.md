@@ -111,6 +111,18 @@ This creates:
 
 with config, data, and artifact files.
 
+Before first real use, set starting working weights in:
+
+```text
+/workspace/group/.health-os/config/exercise-settings.json
+```
+
+or update them through:
+
+```bash
+/workspace/extra/health-os/scripts/set-working-weight.sh --exercise squat --weight 80
+```
+
 ## Command Mapping
 
 The group `CLAUDE.md` should map user intents to these scripts:
@@ -174,6 +186,29 @@ Example files:
 - [normalized-good-day.json](/Users/bknst/Projects/health-os/examples/recovery/normalized-good-day.json)
 - [normalized-bad-day.json](/Users/bknst/Projects/health-os/examples/recovery/normalized-bad-day.json)
 
+### Raw Oura response normalization
+
+This repo also supports normalizing raw Oura response JSON before ingestion:
+
+```bash
+./scripts/normalize-oura-json.sh \
+  --date 2026-04-13 \
+  --readiness-file examples/oura/readiness-response.json \
+  --sleep-file examples/oura/sleep-response.json \
+  --heartrate-file examples/oura/heartrate-response.json
+```
+
+Example raw files:
+
+- [readiness-response.json](/Users/bknst/Projects/health-os/examples/oura/readiness-response.json)
+- [sleep-response.json](/Users/bknst/Projects/health-os/examples/oura/sleep-response.json)
+- [heartrate-response.json](/Users/bknst/Projects/health-os/examples/oura/heartrate-response.json)
+- [baselines.json](/Users/bknst/Projects/health-os/examples/oura/baselines.json)
+
+See [oura-oauth.md](/Users/bknst/Projects/health-os/docs/oura-oauth.md) for the runtime auth boundary and official Oura links.
+
+When `.health-os/data/recovery_snapshots.csv` already contains prior days, the adapter computes 28-day HRV and resting-HR baselines automatically. `baselines.json` is only needed for cold-start bootstrapping or importing an external baseline.
+
 ### Scheduled task templates
 
 Use the provided sample script for a host-side normalized payload drop:
@@ -204,6 +239,21 @@ Weekly summary prompt template:
 ```text
 templates/nanoclaw/telegram_health-tracker/weekly-summary.prompt.md
 ```
+
+Live Oura sync template:
+
+```text
+templates/nanoclaw/telegram_health-tracker/oura-daily-sync.sh
+```
+
+That wrapper expects:
+
+- `OURA_TOKEN_FILE` to point at a host-side secret file outside `/workspace/group/`
+- `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` in the runtime environment when refresh tokens are used
+- optional `OURA_READINESS_PATH`, `OURA_SLEEP_PATH`, and `OURA_HEARTRATE_PATH` overrides if your Oura app needs non-default collection paths
+- optional `OURA_STRICT_HEARTRATE=true` if missing heartrate data should fail the sync instead of falling back to sleep-derived resting HR
+
+For the actual OAuth and token rotation flow, see [oura-oauth.md](/Users/bknst/Projects/health-os/docs/oura-oauth.md), [telegram-setup.md](/Users/bknst/Projects/health-os/docs/telegram-setup.md), and the end-to-end runbook in [runtime-setup.md](/Users/bknst/Projects/health-os/docs/runtime-setup.md).
 
 ## Credential Rule
 

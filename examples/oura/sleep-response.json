@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "day": "2026-04-13",
+      "score": 79,
+      "average_hrv": 49,
+      "lowest_heart_rate": 54,
+      "efficiency": 88,
+      "total_sleep_duration": 25800,
+      "timestamp": "2026-04-13T06:45:00+02:00"
+    }
+  ]
+}
