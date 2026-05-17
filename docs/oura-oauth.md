@@ -46,7 +46,7 @@ The CLI accepts either:
 Build an authorization URL:
 
 ```bash
-./scripts/oura-build-auth-url.sh \
+./src/scripts/oura-build-auth-url.sh \
   --client-id "$OURA_CLIENT_ID" \
   --redirect-uri "http://localhost:8787/callback" \
   --state "$(openssl rand -hex 16)"
@@ -55,7 +55,7 @@ Build an authorization URL:
 Exchange a returned `code` and persist token JSON outside the workspace:
 
 ```bash
-./scripts/oura-exchange-code.sh \
+./src/scripts/oura-exchange-code.sh \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
   --redirect-uri "http://localhost:8787/callback" \
@@ -66,7 +66,7 @@ Exchange a returned `code` and persist token JSON outside the workspace:
 Refresh a stored token in place:
 
 ```bash
-./scripts/oura-refresh-token.sh \
+./src/scripts/oura-refresh-token.sh \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
   --token-file "$HOME/.config/health-os/oura-token.json"
@@ -75,7 +75,7 @@ Refresh a stored token in place:
 Fetch raw Oura collections for one day:
 
 ```bash
-./scripts/oura-fetch-day.sh \
+./src/scripts/oura-fetch-day.sh \
   --date 2026-04-13 \
   --token-file "$HOME/.config/health-os/oura-token.json" \
   --output-dir /tmp/oura-2026-04-13
@@ -84,7 +84,7 @@ Fetch raw Oura collections for one day:
 Normalize fetched Oura JSON:
 
 ```bash
-./scripts/normalize-oura-json.sh \
+./src/scripts/normalize-oura-json.sh \
   --date 2026-04-13 \
   --readiness-file /tmp/oura-2026-04-13/readiness.json \
   --sleep-file /tmp/oura-2026-04-13/sleep.json \
@@ -94,7 +94,7 @@ Normalize fetched Oura JSON:
 Fetch, normalize, and ingest through the provider-neutral connector command:
 
 ```bash
-./scripts/sync-daily-source.sh \
+./src/scripts/sync-daily-source.sh \
   --source oura \
   --date 2026-04-13 \
   --client-id "$OURA_CLIENT_ID" \
@@ -105,7 +105,7 @@ Fetch, normalize, and ingest through the provider-neutral connector command:
 The legacy Oura-specific command is still supported and uses the same connector internally:
 
 ```bash
-./scripts/oura-sync-from-token.sh \
+./src/scripts/oura-sync-from-token.sh \
   --date 2026-04-13 \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
@@ -150,7 +150,3 @@ When the runtime sees Oura auth errors like `401 invalid_token` or `invalid_gran
 1. stop ingest for that run
 2. avoid writing broken payloads into `.health-os/`
 3. report that Oura re-authentication is needed
-
-For the full env-file based setup flow, see [runtime-setup.md](/Users/bknst/Projects/health-os/docs/runtime-setup.md).
-
-For VPS deployment with a server-side callback listener and systemd units, see [vps-deployment.md](/Users/bknst/Projects/health-os/docs/vps-deployment.md).

@@ -10,11 +10,10 @@ The repo owns:
 - daily and weekly artifacts
 - normalized recovery ingestion
 - Oura OAuth, fetch, normalize, and sync helpers
-- optional systemd deployment templates
 
 ## Product Shape
 
-The primary interface is the command line. Every meaningful workflow should be runnable through `src/cli.js` and mirrored by a stable shell wrapper in `scripts/`.
+The primary interface is the command line. Every meaningful workflow should be runnable through `src/cli.js` and mirrored by a stable shell wrapper in `src/scripts/`.
 
 State lives in a user-controlled workspace:
 
@@ -34,7 +33,6 @@ Credentials do not belong in the workspace. Oura token JSON should live in an ex
 3. Log workouts with `log-workout`.
 4. Ingest daily recovery state from normalized JSON or Oura.
 5. Generate `today`, `why`, `next`, and `weekly-summary` outputs.
-6. Optionally refresh those artifacts on a server schedule.
 
 ## Boundary
 
