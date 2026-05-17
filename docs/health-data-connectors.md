@@ -32,7 +32,7 @@ provider credentials -> connector.fetchDaily -> connector.normalizeDaily -> vali
 Use the provider-neutral command when an external tool needs to refresh a user's daily state:
 
 ```bash
-./scripts/sync-daily-source.sh --source oura --date 2026-04-13 --token-file "$HOME/.config/health-os/oura-token.json"
+./src/scripts/sync-daily-source.sh --source oura --date 2026-04-13 --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
 List available connectors:
@@ -44,13 +44,13 @@ node src/cli.js connectors
 Validate a normalized payload without ingesting it:
 
 ```bash
-cat daily-state.json | ./scripts/validate-daily-state.sh
+cat daily-state.json | ./src/scripts/validate-daily-state.sh
 ```
 
 Ingest a normalized payload from any source:
 
 ```bash
-cat daily-state.json | ./scripts/ingest-daily-state.sh
+cat daily-state.json | ./src/scripts/ingest-daily-state.sh
 ```
 
 ## Adding A Wearable

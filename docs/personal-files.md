@@ -28,31 +28,31 @@ The repo-level `raw/` folder is legacy source material, not the runtime upload l
 Show the raw upload folder for the active workspace:
 
 ```bash
-./scripts/personal-raw-dir.sh
+./src/scripts/personal-raw-dir.sh
 ```
 
 Show the processed files folder for the active workspace:
 
 ```bash
-./scripts/personal-files-dir.sh
+./src/scripts/personal-files-dir.sh
 ```
 
 Import an original upload into `.health-os/personal/raw/`:
 
 ```bash
-./scripts/import-personal-file.sh --file medical-tests.pdf
+./src/scripts/import-personal-file.sh --file medical-tests.pdf
 ```
 
 Import with a controlled stored name:
 
 ```bash
-./scripts/import-personal-file.sh --file ~/Downloads/results.md --name 2026-05-17-results.md
+./src/scripts/import-personal-file.sh --file ~/Downloads/results.md --name 2026-05-17-results.md
 ```
 
 Import a processed Markdown file into `.health-os/personal/files/`:
 
 ```bash
-./scripts/import-personal-file.sh --file 2026-05-17-results.md --kind processed
+./src/scripts/import-personal-file.sh --file 2026-05-17-results.md --kind processed
 ```
 
 Imports do not overwrite an existing file by default. Pass `--replace true` only when replacing the stored source document is intentional.

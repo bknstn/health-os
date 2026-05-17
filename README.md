@@ -11,17 +11,16 @@ It keeps mutable state in a local workspace under `.health-os/`, uses determinis
 - CLI commands for logging, analysis, and artifact generation
 - health data connector interface for wearable and recovery data sources
 - Oura OAuth, fetch, normalize, and sync connector
-- systemd templates for optional scheduled refresh on a VPS
 
 ## Runtime Model
 
-Run the CLI from this repo, or through the shell wrappers in `scripts/`.
+Run the CLI from this repo, or through the shell wrappers in `src/scripts/`.
 
 By default, the current directory is the health workspace. Set `HEALTH_OS_WORKSPACE` or pass `--workspace PATH` to keep state elsewhere:
 
 ```bash
 export HEALTH_OS_WORKSPACE="$HOME/.local/share/health-os/workspace"
-./scripts/init-workspace.sh
+./src/scripts/init-workspace.sh
 ```
 
 The workspace contains `.health-os/config`, `.health-os/data`, `.health-os/artifacts`, `.health-os/personal/raw`, and `.health-os/personal/files`. Provider tokens should stay outside the workspace, for example in `$HOME/.config/health-os/oura-token.json`.
@@ -33,79 +32,79 @@ Use `.health-os/personal/raw` for original user uploads in any format. Use `.hea
 Initialize a workspace:
 
 ```bash
-./scripts/init-workspace.sh
+./src/scripts/init-workspace.sh
 ```
 
 Log a workout from stdin:
 
 ```bash
-cat workout.txt | ./scripts/log-workout.sh
+cat workout.txt | ./src/scripts/log-workout.sh
 ```
 
 Set a starting working weight:
 
 ```bash
-./scripts/set-working-weight.sh --exercise squat --weight 80
+./src/scripts/set-working-weight.sh --exercise squat --weight 80
 ```
 
 Show the next workout:
 
 ```bash
-./scripts/next-workout.sh
+./src/scripts/next-workout.sh
 ```
 
 Generate today's brief:
 
 ```bash
-./scripts/today.sh
+./src/scripts/today.sh
 ```
 
 Inspect the current decision:
 
 ```bash
-./scripts/why.sh
+./src/scripts/why.sh
 ```
 
 Generate a weekly summary:
 
 ```bash
-./scripts/weekly-summary.sh
+./src/scripts/weekly-summary.sh
 ```
 
 Ingest normalized recovery data:
 
 ```bash
-cat daily-state.json | ./scripts/ingest-daily-state.sh
+cat daily-state.json | ./src/scripts/ingest-daily-state.sh
 ```
 
 Validate a normalized recovery payload:
 
 ```bash
-cat daily-state.json | ./scripts/validate-daily-state.sh
+cat daily-state.json | ./src/scripts/validate-daily-state.sh
 ```
 
 Show the raw upload folder for the current workspace:
 
 ```bash
-./scripts/personal-raw-dir.sh
+./src/scripts/personal-raw-dir.sh
 ```
 
 Show the processed personal files folder for the current workspace:
 
 ```bash
-./scripts/personal-files-dir.sh
+./src/scripts/personal-files-dir.sh
 ```
 
 Import an original user upload into `.health-os/personal/raw`:
 
 ```bash
-./scripts/import-personal-file.sh --file medical-tests.pdf
+./src/scripts/import-personal-file.sh --file medical-tests.pdf
 ```
 
 Import an agent-ready Markdown file into `.health-os/personal/files`:
 
 ```bash
-./scripts/import-personal-file.sh --file medical-tests.md --kind processed
+./src/scripts/import-personal-file.sh --file medical-tests.md --kind processed
 ```
 
 List available health data connectors:
@@ -117,7 +116,7 @@ node src/cli.js connectors
 Sync one provider day through the connector interface:
 
 ```bash
-./scripts/sync-daily-source.sh \
+./src/scripts/sync-daily-source.sh \
   --source oura \
   --date 2026-04-13 \
   --client-id "$OURA_CLIENT_ID" \
@@ -128,7 +127,7 @@ Sync one provider day through the connector interface:
 Normalize raw Oura response JSON into the engine payload:
 
 ```bash
-./scripts/normalize-oura-json.sh \
+./src/scripts/normalize-oura-json.sh \
   --date 2026-04-13 \
   --readiness-file examples/oura/readiness-response.json \
   --sleep-file examples/oura/sleep-response.json \
@@ -153,13 +152,13 @@ See `docs/health-data-connectors.md` for the connector contract and extension no
 Build an Oura authorization URL:
 
 ```bash
-./scripts/oura-build-auth-url.sh --client-id "$OURA_CLIENT_ID" --redirect-uri "http://localhost:8787/callback"
+./src/scripts/oura-build-auth-url.sh --client-id "$OURA_CLIENT_ID" --redirect-uri "http://localhost:8787/callback"
 ```
 
 Exchange an authorization code and write the token JSON to an external file:
 
 ```bash
-./scripts/oura-exchange-code.sh \
+./src/scripts/oura-exchange-code.sh \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
   --redirect-uri "http://localhost:8787/callback" \
@@ -170,7 +169,7 @@ Exchange an authorization code and write the token JSON to an external file:
 Fetch and ingest one Oura day directly into a workspace:
 
 ```bash
-./scripts/oura-sync-from-token.sh \
+./src/scripts/oura-sync-from-token.sh \
   --date 2026-04-13 \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
@@ -182,16 +181,7 @@ Fetch and ingest one Oura day directly into a workspace:
 Listen for the server-side Oura callback and store the token file:
 
 ```bash
-./scripts/oura-listen-callback.sh --token-file "$HOME/.config/health-os/oura-token.json"
-```
-
-## Runtime Setup
-
-Start from the env template when you want a repeatable local or server setup:
-
-```bash
-cp examples/runtime/health-os.env.example ~/.config/health-os/runtime.env
-./scripts/setup-runtime.sh --env-file ~/.config/health-os/runtime.env
+./src/scripts/oura-listen-callback.sh --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
 Run tests:
@@ -205,5 +195,3 @@ More setup notes:
 - Oura auth flow: `docs/oura-oauth.md`
 - Health data connectors: `docs/health-data-connectors.md`
 - Personal file uploads: `docs/personal-files.md`
-- Full runtime runbook: `docs/runtime-setup.md`
-- VPS deployment and systemd: `docs/vps-deployment.md`
