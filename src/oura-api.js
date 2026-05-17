@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export const OURA_AUTHORIZE_URL = 'https://cloud.ouraring.com/oauth/authorize';
 export const OURA_TOKEN_URL = 'https://api.ouraring.com/oauth/token';
@@ -231,10 +232,16 @@ export function writeOuraTokenFile(filePath, tokenPayload) {
   ensureDirectory(path.dirname(filePath));
   const tempPath = path.join(
     path.dirname(filePath),
-    `.tmp-${path.basename(filePath)}-${process.pid}-${Date.now()}`
+    `.tmp-${path.basename(filePath)}-${process.pid}-${randomUUID()}`
   );
-  fs.writeFileSync(tempPath, `${JSON.stringify(tokenPayload, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(tempPath, `${JSON.stringify(tokenPayload, null, 2)}\n`, {
+    encoding: 'utf8',
+    flag: 'wx',
+    mode: 0o600
+  });
+  fs.chmodSync(tempPath, 0o600);
   fs.renameSync(tempPath, filePath);
+  fs.chmodSync(filePath, 0o600);
 }
 
 export function ensureDirectory(dirPath) {

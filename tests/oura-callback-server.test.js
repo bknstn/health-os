@@ -37,3 +37,14 @@ test('handleOuraCallback exchanges the code and writes the token file', async ()
   assert.equal(stored.access_token, 'access-for-code-1');
   assert.equal(stored.refresh_token, 'refresh-1');
 });
+
+test('handleOuraCallback escapes reflected OAuth errors', async () => {
+  const handled = await handleOuraCallback({
+    error: '<script>alert(1)</script>',
+    logger: { log() {}, error() {} }
+  });
+
+  assert.equal(handled.statusCode, 400);
+  assert.match(handled.body, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(handled.body, /<script>alert\(1\)<\/script>/);
+});
