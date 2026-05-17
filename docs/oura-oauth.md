@@ -1,6 +1,6 @@
 # Oura OAuth Notes
 
-This repo treats Oura authentication as a runtime concern and keeps the health engine independent of raw credentials.
+This repo treats Oura authentication as a connector runtime concern and keeps the health engine independent of raw credentials, provider payloads, and AI-agent integrations.
 
 ## Official Oura References
 
@@ -16,6 +16,7 @@ Based on the official docs above:
 - access tokens are exchanged at `https://api.ouraring.com/oauth/token`
 - authorization starts at `https://cloud.ouraring.com/oauth/authorize`
 - the default requested scopes for this tracker are `daily` and `heartrate`
+- refresh tokens are single-use and must be replaced with the newly returned refresh token after each refresh
 
 Inference:
 
@@ -38,7 +39,7 @@ The CLI accepts either:
 
 1. normalized daily payload JSON
 2. raw Oura response JSON files fetched by a runtime job
-3. an Oura token file that lets `oura-sync-from-token` fetch, normalize, and ingest in one command
+3. an Oura token file that lets the `oura` connector fetch, normalize, and ingest in one command
 
 ## Repo Commands
 
@@ -90,7 +91,18 @@ Normalize fetched Oura JSON:
   --heartrate-file /tmp/oura-2026-04-13/heartrate.json
 ```
 
-Fetch, normalize, and ingest in one step:
+Fetch, normalize, and ingest through the provider-neutral connector command:
+
+```bash
+./scripts/sync-daily-source.sh \
+  --source oura \
+  --date 2026-04-13 \
+  --client-id "$OURA_CLIENT_ID" \
+  --client-secret "$OURA_CLIENT_SECRET" \
+  --token-file "$HOME/.config/health-os/oura-token.json"
+```
+
+The legacy Oura-specific command is still supported and uses the same connector internally:
 
 ```bash
 ./scripts/oura-sync-from-token.sh \
@@ -100,7 +112,7 @@ Fetch, normalize, and ingest in one step:
   --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
-`oura-sync-from-token` refreshes the token first when a `refresh_token` is present, then fetches readiness, sleep, and heartrate collections, normalizes them, and ingests the day into `.health-os/`.
+The connector refreshes the token first when a `refresh_token` is present, writes the newly returned token back to the token file, then fetches readiness, sleep, and heartrate collections, normalizes them, and ingests the day into `.health-os/`.
 
 If the health workspace already contains prior recovery history, the adapter computes 28-day HRV and resting-HR baselines automatically from `.health-os/data/recovery_snapshots.csv`. A separate baselines file is only needed when bootstrapping from external history.
 
@@ -112,14 +124,24 @@ The live fetch helpers default to these v2 collection paths:
 - `/v2/usercollection/daily_sleep`
 - `/v2/usercollection/heartrate`
 
-The OAuth endpoints and required scopes above are confirmed against Oura's official authentication docs. The collection paths are the repo defaults for the v2 usercollection flow and can be overridden at runtime with:
+The OAuth endpoints and required scopes above were checked against Oura's official authentication and error-handling docs on 2026-05-17. The collection paths are the repo defaults for the v2 usercollection flow and can be overridden at runtime with:
 
 - `OURA_READINESS_PATH`
 - `OURA_SLEEP_PATH`
 - `OURA_HEARTRATE_PATH`
 - `OURA_API_BASE_URL`
 
-By default, `oura-fetch-day` and `oura-sync-from-token` tolerate heartrate collection failures and continue with an empty heartrate payload. Set `OURA_STRICT_HEARTRATE=true` if you want missing heartrate data to fail the run.
+By default, `oura-fetch-day`, `sync-daily-source --source oura`, and `oura-sync-from-token` tolerate heartrate collection failures and continue with an empty heartrate payload. Set `OURA_STRICT_HEARTRATE=true` if you want missing heartrate data to fail the run.
+
+## Integration Boundary
+
+Agents and external tools should not depend on Oura internals. They should call:
+
+- `sync-daily-source --source oura` to refresh a day
+- `validate-daily-state` for externally normalized recovery data
+- `ingest-daily-state` only after payload validation succeeds
+
+The reusable connector contract is documented in [health-data-connectors.md](/Users/bknst/Projects/health-os/docs/health-data-connectors.md).
 
 ## Error Handling
 

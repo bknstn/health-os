@@ -15,6 +15,9 @@ export function buildPaths(groupRootArg) {
     configDir: path.join(trackerRoot, 'config'),
     dataDir: path.join(trackerRoot, 'data'),
     artifactsDir: path.join(trackerRoot, 'artifacts'),
+    personalDir: path.join(trackerRoot, 'personal'),
+    personalRawDir: path.join(trackerRoot, 'personal', 'raw'),
+    personalFilesDir: path.join(trackerRoot, 'personal', 'files'),
     trainingPlanFile: path.join(trackerRoot, 'config', 'training-plan.json'),
     rulesFile: path.join(trackerRoot, 'config', 'rules.json'),
     exerciseSettingsFile: path.join(trackerRoot, 'config', 'exercise-settings.json'),
@@ -38,4 +41,7 @@ export function ensureWorkspace(paths) {
   ensureDir(paths.configDir);
   ensureDir(paths.dataDir);
   ensureDir(paths.artifactsDir);
+  ensureDir(paths.personalDir);
+  ensureDir(paths.personalRawDir);
+  ensureDir(paths.personalFilesDir);
 }
