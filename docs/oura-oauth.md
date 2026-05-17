@@ -1,6 +1,6 @@
 # Oura OAuth Notes
 
-This repo treats Oura authentication as a connector runtime concern and keeps the health engine independent of raw credentials, provider payloads, and AI-agent integrations.
+This repo treats Oura authentication as a connector runtime concern and keeps the health engine independent of raw credentials, provider payloads, and caller-specific integrations.
 
 ## Official Oura References
 
@@ -135,7 +135,7 @@ By default, `oura-fetch-day`, `sync-daily-source --source oura`, and `oura-sync-
 
 ## Integration Boundary
 
-Agents and external tools should not depend on Oura internals. They should call:
+External tools should not depend on Oura internals. They should call:
 
 - `sync-daily-source --source oura` to refresh a day
 - `validate-daily-state` for externally normalized recovery data

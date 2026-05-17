@@ -25,7 +25,7 @@ test('import-personal-file copies original uploads into the workspace raw folder
   assert.equal(fs.readFileSync(output.stored_file, 'utf8'), 'PDF bytes\n');
 });
 
-test('import-personal-file can copy processed Markdown into the agent-ready files folder', () => {
+test('import-personal-file can copy processed Markdown into the processed files folder', () => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'health-os-personal-'));
   const sourceFile = path.join(workspace, 'lab-results.md');
   fs.writeFileSync(sourceFile, '# Lab Results\n\nFerritin: 45\n', 'utf8');

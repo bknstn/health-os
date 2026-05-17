@@ -15,13 +15,13 @@ Use `.health-os/personal/raw/` as the canonical upload inbox. Store original use
 - CSV/XLSX exports
 - Markdown files the user directly uploads
 
-Use `.health-os/personal/files/` for processed, agent-ready text:
+Use `.health-os/personal/files/` for processed text:
 
 - normalized Markdown medical-test notes
 - lab summaries derived from PDFs or images
 - curated user context that is safe for tools to read directly
 
-The repo-level `raw/` folder is legacy source material, not the runtime upload location. Runtime uploads belong in `.health-os/personal/raw/`; agents and tools should prefer `.health-os/personal/files/` when they need LLM-ready text.
+The repo-level `raw/` folder is legacy source material, not the runtime upload location. Runtime uploads belong in `.health-os/personal/raw/`; external tools should prefer `.health-os/personal/files/` when they need processed text.
 
 ## Commands
 
