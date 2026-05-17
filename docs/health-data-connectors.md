@@ -2,9 +2,9 @@
 
 Health OS separates provider harvesting from health decisions.
 
-The engine accepts one stable payload: the normalized recovery contract validated by `src/recovery-contract.js`. Wearables, lab imports, manual forms, and future integrations should be implemented as connectors that produce that payload. AI agents and other tools should depend on this contract or on CLI commands that expose it, not on provider-specific Oura, Whoop, or Garmin code.
+The engine accepts one stable payload: the normalized recovery contract validated by `src/recovery-contract.js`. Wearables, lab imports, manual forms, and future integrations should be implemented as connectors that produce that payload. External callers should depend on this contract or on CLI commands that expose it, not on provider-specific Oura, Whoop, or Garmin code.
 
-User-uploaded source documents belong in `.health-os/personal/raw/`; processed Markdown and text for agents belongs in `.health-os/personal/files/`. See [personal-files.md](/Users/bknst/Projects/health-os/docs/personal-files.md). A connector or parser may read either layer, but it should preserve provenance and still emit the normalized contract before ingestion.
+User-uploaded source documents belong in `.health-os/personal/raw/`; processed Markdown and text belongs in `.health-os/personal/files/`. See [personal-files.md](/Users/bknst/Projects/health-os/docs/personal-files.md). A connector or parser may read either layer, but it should preserve provenance and still emit the normalized contract before ingestion.
 
 ## Connector Contract
 
@@ -63,13 +63,13 @@ cat daily-state.json | ./src/scripts/ingest-daily-state.sh
 
 Provider authentication can be OAuth, personal access token, local file import, or an upstream service token. Keep credentials outside `.health-os/`; the workspace is for derived user state and artifacts.
 
-## Agent Integration Boundary
+## Integration Boundary
 
-Hermes, MCP servers, chat agents, dashboards, and cron jobs should treat Health OS as a local health data service:
+External tools should treat Health OS as a local CLI service:
 
 - call `sync-daily-source` to harvest a provider day
 - call `validate-daily-state` before sending externally normalized data
 - call `today`, `why`, and `weekly-summary` for read-only briefs
 - avoid importing provider adapters directly unless implementing a connector
 
-This keeps Health OS reusable even when the caller is not an AI agent.
+This keeps Health OS reusable regardless of the caller.
