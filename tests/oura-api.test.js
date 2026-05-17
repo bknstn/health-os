@@ -1,11 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import {
   buildOuraAuthorizeUrl,
   exchangeOuraCode,
   fetchOuraDay,
-  refreshOuraAccessToken
+  refreshOuraAccessToken,
+  writeOuraTokenFile
 } from '../src/oura-api.js';
 
 function okJson(payload) {
@@ -136,4 +140,17 @@ test('fetchOuraDay tolerates heartrate failures by default', async () => {
   });
 
   assert.deepEqual(bundle.heartrate, { data: [] });
+});
+
+test('writeOuraTokenFile stores token files with owner-only permissions', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-os-token-'));
+  const tokenFile = path.join(tempDir, 'oura-token.json');
+
+  writeOuraTokenFile(tokenFile, {
+    access_token: 'access-1',
+    refresh_token: 'refresh-1'
+  });
+
+  const mode = fs.statSync(tokenFile).mode & 0o777;
+  assert.equal(mode, 0o600);
 });

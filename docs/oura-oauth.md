@@ -141,7 +141,7 @@ External tools should not depend on Oura internals. They should call:
 - `validate-daily-state` for externally normalized recovery data
 - `ingest-daily-state` only after payload validation succeeds
 
-The reusable connector contract is documented in [health-data-connectors.md](/Users/bknst/Projects/health-os/docs/health-data-connectors.md).
+The reusable connector contract is documented in [health-data-connectors.md](health-data-connectors.md).
 
 ## Error Handling
 

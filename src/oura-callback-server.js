@@ -3,17 +3,28 @@ import { URL } from 'node:url';
 
 import { exchangeOuraCode, writeOuraTokenFile } from './oura-api.js';
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function htmlPage(title, body) {
+  const safeTitle = escapeHtml(title);
+  const safeBody = escapeHtml(body);
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${title}</title>
+  <title>${safeTitle}</title>
 </head>
 <body>
-  <h1>${title}</h1>
-  <p>${body}</p>
+  <h1>${safeTitle}</h1>
+  <p>${safeBody}</p>
 </body>
 </html>
 `;
@@ -77,9 +88,7 @@ export async function handleOuraCallback({
       statusCode: 200,
       body: htmlPage('Oura Connected', 'The token was stored successfully. You can close this page.'),
       result: {
-        tokenFile,
-        code,
-        tokenPayload
+        tokenFile
       }
     };
   } catch (errorObject) {

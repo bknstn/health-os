@@ -4,7 +4,7 @@ Health OS separates provider harvesting from health decisions.
 
 The engine accepts one stable payload: the normalized recovery contract validated by `src/recovery-contract.js`. Wearables, lab imports, manual forms, and future integrations should be implemented as connectors that produce that payload. External callers should depend on this contract or on CLI commands that expose it, not on provider-specific Oura, Whoop, or Garmin code.
 
-User-uploaded source documents belong in `.health-os/personal/raw/`; processed Markdown and text belongs in `.health-os/personal/files/`. See [personal-files.md](/Users/bknst/Projects/health-os/docs/personal-files.md). A connector or parser may read either layer, but it should preserve provenance and still emit the normalized contract before ingestion.
+User-uploaded source documents belong in `.health-os/personal/raw/`; processed Markdown and text belongs in `.health-os/personal/files/`. See [personal-files.md](personal-files.md). A connector or parser may read either layer, but it should preserve provenance and still emit the normalized contract before ingestion.
 
 ## Connector Contract
 
