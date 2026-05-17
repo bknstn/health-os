@@ -116,6 +116,7 @@ npm test
 
 Further docs:
 
+- `docs/agent-integration-runbook.md`
 - `docs/health-data-connectors.md`
 - `docs/oura-oauth.md`
 - `docs/personal-files.md`
