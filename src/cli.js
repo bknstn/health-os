@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import path from 'node:path';
 
 import { computeWorkspaceBaselines } from './baselines.js';
 import { buildPaths, ensureWorkspace, repoRoot } from './layout.js';
@@ -11,13 +12,16 @@ import {
   fetchOuraDay,
   readOuraTokenFile,
   refreshOuraAccessToken,
-  temporaryOuraOutputDir,
   writeOuraDayBundle,
   writeOuraTokenFile
 } from './oura-api.js';
 import { callbackPathFromRedirectUri, startOuraCallbackServer } from './oura-callback-server.js';
+import {
+  listHealthDataConnectors,
+  syncDailyStateFromConnector
+} from './health-data-connectors.js';
 import { validateRecoveryPayload } from './recovery-contract.js';
-import { normalizeOuraPayload, normalizeOuraPayloadFromFiles } from './oura-adapter.js';
+import { normalizeOuraPayloadFromFiles } from './oura-adapter.js';
 import {
   appendWorkoutLog,
   buildNextWorkout,
@@ -61,6 +65,27 @@ function splitScopes(value) {
 
 function jsonOutput(payload) {
   return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function safePersonalFileName(filePath, nameOverride) {
+  if (nameOverride && (nameOverride.includes('/') || nameOverride.includes('\\'))) {
+    throw new Error('import-personal-file --name must be a file name, not a path');
+  }
+  const fileName = path.basename(nameOverride || filePath);
+  if (!fileName || fileName === '.' || fileName === '..' || fileName.includes('/') || fileName.includes('\\')) {
+    throw new Error('import-personal-file requires a safe file name');
+  }
+  return fileName;
+}
+
+function personalImportTarget(paths, kind = 'raw') {
+  if (kind === 'raw') {
+    return paths.personalRawDir;
+  }
+  if (kind === 'processed') {
+    return paths.personalFilesDir;
+  }
+  throw new Error('import-personal-file --kind must be raw or processed');
 }
 
 function pickTokenPath(options) {
@@ -133,6 +158,42 @@ async function main() {
     case 'validate-daily-state': {
       const payload = validateRecoveryPayload(JSON.parse(readInput(options.input)));
       process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+      return;
+    }
+    case 'personal-files-dir':
+      process.stdout.write(`${paths.personalFilesDir}\n`);
+      return;
+    case 'personal-raw-dir':
+      process.stdout.write(`${paths.personalRawDir}\n`);
+      return;
+    case 'import-personal-file': {
+      initialiseWorkspace(paths, repoRoot());
+      if (!options.file) {
+        throw new Error('import-personal-file requires --file');
+      }
+      const sourcePath = path.resolve(options.file);
+      const fileName = safePersonalFileName(sourcePath, options.name);
+      const kind = options.kind || 'raw';
+      const targetPath = path.join(personalImportTarget(paths, kind), fileName);
+      if (fs.existsSync(targetPath) && options.replace !== 'true') {
+        throw new Error(`Personal file already exists: ${targetPath}. Pass --replace true to overwrite it.`);
+      }
+      fs.copyFileSync(sourcePath, targetPath);
+      process.stdout.write(jsonOutput({ kind, stored_file: targetPath }));
+      return;
+    }
+    case 'connectors':
+      process.stdout.write(jsonOutput(listHealthDataConnectors()));
+      return;
+    case 'sync-daily-source': {
+      initialiseWorkspace(paths, repoRoot());
+      const result = await syncDailyStateFromConnector({
+        connectorId: options.source || 'oura',
+        paths,
+        date: options.date || localDateString(),
+        options
+      });
+      process.stdout.write(jsonOutput(result));
       return;
     }
     case 'normalize-oura-json': {
@@ -221,81 +282,15 @@ async function main() {
     }
     case 'oura-sync-from-token': {
       initialiseWorkspace(paths, repoRoot());
-      const tokenPath = pickTokenPath(options);
-      const tokenFilePayload = tokenPath ? readOuraTokenFile(tokenPath) : null;
-      let tokenPayload = tokenFilePayload;
-
-      if (!tokenPayload?.access_token && !options['access-token']) {
-        throw new Error('oura-sync-from-token requires --token-file or --access-token');
-      }
-
-      if (tokenPayload?.refresh_token) {
-        tokenPayload = await refreshOuraAccessToken({
-          refreshToken: tokenPayload.refresh_token,
-          clientId: options['client-id'] || process.env.OURA_CLIENT_ID,
-          clientSecret: options['client-secret'] || process.env.OURA_CLIENT_SECRET
-        });
-        if (tokenPath) {
-          writeOuraTokenFile(tokenPath, tokenPayload);
-        }
-      }
-
-      const bundle = await fetchOuraDay({
-        accessToken: options['access-token'] || tokenPayload?.access_token,
-        date: options.date || localDateString(),
-        apiBaseUrl: options['api-base-url'] || process.env.OURA_API_BASE_URL,
-        readinessPath:
-          options['readiness-path'] ||
-          process.env.OURA_READINESS_PATH ||
-          undefined,
-        sleepPath:
-          options['sleep-path'] ||
-          process.env.OURA_SLEEP_PATH ||
-          undefined,
-        heartratePath:
-          options['heartrate-path'] ||
-          process.env.OURA_HEARTRATE_PATH ||
-          undefined,
-        optionalHeartrate:
-          options['strict-heartrate'] === 'true' || process.env.OURA_STRICT_HEARTRATE === 'true'
-            ? false
-            : true
-      });
-
-      const outputDir =
-        options['output-dir'] === 'temp'
-          ? temporaryOuraOutputDir()
-          : options['output-dir'];
-      if (outputDir) {
-        writeOuraDayBundle(outputDir, bundle);
-      }
-
-      const baselines =
-        options['baselines-file']
-          ? undefined
-          : computeWorkspaceBaselines(paths, bundle.date);
-      const normalized = validateRecoveryPayload(
-        normalizeOuraPayload({
-          date: bundle.date,
-          readinessJson: bundle.readiness,
-          sleepJson: bundle.sleep,
-          heartrateJson: bundle.heartrate,
-          baselines:
-            options['baselines-file']
-              ? JSON.parse(fs.readFileSync(options['baselines-file'], 'utf8'))
-              : baselines || {}
-        })
-      );
-      const decision = ingestDailyState(paths, normalized);
-
       process.stdout.write(
-        jsonOutput({
-          date: bundle.date,
-          mode: decision.mode,
-          score: decision.score,
-          token_refreshed: Boolean(tokenFilePayload?.refresh_token),
-          output_dir: outputDir || ''
-        })
+        jsonOutput(
+          await syncDailyStateFromConnector({
+            connectorId: 'oura',
+            paths,
+            date: options.date || localDateString(),
+            options
+          })
+        )
       );
       return;
     }
@@ -344,7 +339,7 @@ async function main() {
       return;
     default:
       process.stderr.write(
-        'Usage: node src/cli.js <init-workspace|log-workout|set-working-weight|next|ingest-daily-state|validate-daily-state|normalize-oura-json|oura-auth-url|oura-exchange-code|oura-refresh-token|oura-fetch-day|oura-sync-from-token|oura-listen-callback|today|why|weekly-summary> [--workspace PATH] [--input FILE|-]\n'
+        'Usage: node src/cli.js <init-workspace|log-workout|set-working-weight|next|ingest-daily-state|validate-daily-state|personal-raw-dir|personal-files-dir|import-personal-file|connectors|sync-daily-source|normalize-oura-json|oura-auth-url|oura-exchange-code|oura-refresh-token|oura-fetch-day|oura-sync-from-token|oura-listen-callback|today|why|weekly-summary> [--workspace PATH] [--input FILE|-]\n'
       );
       process.exitCode = 1;
   }
