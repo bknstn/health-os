@@ -5,17 +5,12 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 
 ENV_FILE=
-SKIP_NANOCLAW=false
 SKIP_OURA=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --env-file)
       ENV_FILE=$2
       shift 2
-      ;;
-    --skip-nanoclaw)
-      SKIP_NANOCLAW=true
-      shift
       ;;
     --skip-oura)
       SKIP_OURA=true
@@ -94,11 +89,6 @@ check_script() {
 }
 
 require_env HEALTH_OS_WORKSPACE
-if [ "$SKIP_NANOCLAW" = false ]; then
-  require_env NANOCLAW_ROOT
-  require_env TG_CHAT_JID
-  check_dir NANOCLAW_ROOT "$(value_of NANOCLAW_ROOT)"
-fi
 if [ "$SKIP_OURA" = false ]; then
   require_env OURA_CLIENT_ID
   require_env OURA_CLIENT_SECRET

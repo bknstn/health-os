@@ -1,19 +1,29 @@
 # Health OS
 
-Private repo for the NanoClaw-based health tracker.
+Health OS is a CLI-first health discovery app for training, recovery, and daily readiness decisions.
+
+It keeps mutable state in a local workspace under `.health-os/`, uses deterministic rules for workout decisions, and can ingest normalized recovery data or Oura data through command-line workflows.
 
 ## What Lives Here
 
-- the training engine
-- default program and readiness rules
-- command-line tools for logging and analysis
-- NanoClaw integration templates
+- training and recovery decision engine
+- default program, exercise settings, and readiness rules
+- CLI commands for logging, analysis, and artifact generation
+- Oura OAuth, fetch, normalize, and sync helpers
+- systemd templates for optional scheduled refresh on a VPS
 
 ## Runtime Model
 
-This repo is mounted into a dedicated NanoClaw group as read-only code.
+Run the CLI from this repo, or through the shell wrappers in `scripts/`.
 
-Mutable state is created in the group workspace under `.health-os/`.
+By default, the current directory is the health workspace. Set `HEALTH_OS_WORKSPACE` or pass `--workspace PATH` to keep state elsewhere:
+
+```bash
+export HEALTH_OS_WORKSPACE="$HOME/.local/share/health-os/workspace"
+./scripts/init-workspace.sh
+```
+
+The workspace contains `.health-os/config`, `.health-os/data`, and `.health-os/artifacts`. Oura tokens should stay outside the workspace, for example in `$HOME/.config/health-os/oura-token.json`.
 
 ## Commands
 
@@ -32,7 +42,7 @@ cat workout.txt | ./scripts/log-workout.sh
 Set a starting working weight:
 
 ```bash
-./scripts/set-working-weight.sh --workspace /tmp/health-group --exercise squat --weight 80
+./scripts/set-working-weight.sh --exercise squat --weight 80
 ```
 
 Show the next workout:
@@ -45,6 +55,18 @@ Generate today's brief:
 
 ```bash
 ./scripts/today.sh
+```
+
+Inspect the current decision:
+
+```bash
+./scripts/why.sh
+```
+
+Generate a weekly summary:
+
+```bash
+./scripts/weekly-summary.sh
 ```
 
 Ingest normalized recovery data:
@@ -71,6 +93,8 @@ Normalize raw Oura response JSON into the engine payload:
 
 If a workspace already has prior recovery history, 28-day HRV and resting-HR baselines are computed automatically from `.health-os/data/recovery_snapshots.csv`.
 
+## Oura Flow
+
 Build an Oura authorization URL:
 
 ```bash
@@ -88,30 +112,14 @@ Exchange an authorization code and write the token JSON to an external file:
   --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
-Refresh a stored Oura token:
-
-```bash
-./scripts/oura-refresh-token.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
-  --token-file "$HOME/.config/health-os/oura-token.json"
-```
-
 Fetch and ingest one Oura day directly into a workspace:
 
 ```bash
 ./scripts/oura-sync-from-token.sh \
-  --workspace /tmp/health-group \
   --date 2026-04-13 \
   --client-id "$OURA_CLIENT_ID" \
   --client-secret "$OURA_CLIENT_SECRET" \
   --token-file "$HOME/.config/health-os/oura-token.json"
-```
-
-Bootstrap the NanoClaw runtime from an env file:
-
-```bash
-./scripts/setup-runtime.sh --env-file ~/.config/health-os/runtime.env
 ```
 
 Listen for the server-side Oura callback and store the token file:
@@ -120,10 +128,13 @@ Listen for the server-side Oura callback and store the token file:
 ./scripts/oura-listen-callback.sh --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
-Generate a weekly summary:
+## Runtime Setup
+
+Start from the env template when you want a repeatable local or server setup:
 
 ```bash
-./scripts/weekly-summary.sh
+cp examples/runtime/health-os.env.example ~/.config/health-os/runtime.env
+./scripts/setup-runtime.sh --env-file ~/.config/health-os/runtime.env
 ```
 
 Run tests:
@@ -134,7 +145,6 @@ npm test
 
 More setup notes:
 
-- Oura auth and runtime flow: `docs/oura-oauth.md`
-- Telegram and NanoClaw runtime wiring: `docs/telegram-setup.md`
-- Full runbook and env template: `docs/runtime-setup.md`
+- Oura auth flow: `docs/oura-oauth.md`
+- Full runtime runbook: `docs/runtime-setup.md`
 - VPS deployment and systemd: `docs/vps-deployment.md`

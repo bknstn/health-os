@@ -1,21 +1,20 @@
 # Runtime Setup
 
-This is the concrete runbook for wiring `health-os` into NanoClaw with Telegram and Oura, without storing secrets in the group workspace.
+This runbook wires `health-os` as a standalone CLI app with a local workspace and optional Oura sync.
 
 ## 1. Prepare Environment
 
 Copy the example file:
 
 ```bash
+mkdir -p ~/.config/health-os
 cp examples/runtime/health-os.env.example ~/.config/health-os/runtime.env
 ```
 
 Edit `~/.config/health-os/runtime.env` and fill:
 
-- `NANOCLAW_ROOT`
 - `HEALTH_OS_ROOT`
 - `HEALTH_OS_WORKSPACE`
-- `TG_CHAT_JID`
 - `OURA_CLIENT_ID`
 - `OURA_CLIENT_SECRET`
 - `OURA_REDIRECT_URI`
@@ -27,11 +26,11 @@ Then validate the setup shape:
 ./scripts/check-runtime-env.sh --env-file ~/.config/health-os/runtime.env
 ```
 
-At this point it is normal for `HEALTH_OS_WORKSPACE` and `OURA_TOKEN_FILE` to show up as optional missing paths if you have not registered the group or completed OAuth yet.
+It is normal for `HEALTH_OS_WORKSPACE` and `OURA_TOKEN_FILE` to show up as optional missing paths before workspace initialization and OAuth are complete.
 
-## 2. One-Shot Bootstrap
+## 2. Bootstrap The Workspace
 
-Once the env file is ready, the simplest path is:
+Once the env file is ready:
 
 ```bash
 ./scripts/setup-runtime.sh --env-file ~/.config/health-os/runtime.env
@@ -39,41 +38,20 @@ Once the env file is ready, the simplest path is:
 
 That command:
 
-- validates the required env
-- registers the NanoClaw Telegram group
-- copies the `CLAUDE.md` template if the group does not already have one
-- initializes `.health-os/` in the group workspace
+- validates required env values
+- creates `HEALTH_OS_WORKSPACE`
+- initializes `.health-os/`
 - prints the Oura authorization URL
 
-Use `--skip-register` if the NanoClaw group is already registered and you only want to reinitialize the workspace or refresh the auth URL.
-
-Use `--skip-auth-url` if you want to bootstrap the group before Oura credentials are ready:
+Use `--skip-auth-url` if you want to bootstrap the workspace before Oura credentials are ready:
 
 ```bash
 ./scripts/setup-runtime.sh --env-file ~/.config/health-os/runtime.env --skip-auth-url
 ```
 
-For a real VPS deployment with systemd and server-side OAuth callback handling, use [vps-deployment.md](/Users/bknst/Projects/health-os/docs/vps-deployment.md).
+For a VPS deployment with systemd and server-side OAuth callback handling, use [vps-deployment.md](/Users/bknst/Projects/health-os/docs/vps-deployment.md).
 
-## 3. Register The Telegram Health Group Manually
-
-Source the runtime env and register the group in NanoClaw:
-
-```bash
-set -a
-. ~/.config/health-os/runtime.env
-set +a
-
-./examples/nanoclaw/register-health-tracker.sh
-```
-
-Then copy the prompt template into the NanoClaw group folder and initialize the tracker workspace:
-
-```bash
-$HEALTH_OS_ROOT/scripts/init-workspace.sh --workspace "$HEALTH_OS_WORKSPACE"
-```
-
-## 4. Complete Oura OAuth
+## 3. Complete Oura OAuth
 
 Build the authorization URL:
 
@@ -91,13 +69,13 @@ Open the printed URL, approve access, then exchange the returned `code`:
 ./scripts/oura-exchange-code.sh --code "$OURA_CODE"
 ```
 
-That writes the token JSON to `OURA_TOKEN_FILE`.
+That writes token JSON to `OURA_TOKEN_FILE`.
 
 If you want strict OAuth state validation, set `OURA_STATE` before building the URL and use the same value when starting the callback listener.
 
-## 5. Dry-Run Oura Sync
+## 4. Dry-Run Oura Sync
 
-Pull one day and ingest it into the tracker workspace:
+Pull one day and ingest it into the health workspace:
 
 ```bash
 set -a
@@ -107,25 +85,20 @@ set +a
 ./scripts/oura-sync-from-token.sh --date 2026-04-14 --output-dir temp
 ```
 
-Then inspect the generated brief:
+Then inspect the generated outputs:
 
 ```bash
-./scripts/today.sh --workspace "$HEALTH_OS_WORKSPACE"
-./scripts/why.sh --workspace "$HEALTH_OS_WORKSPACE"
+./scripts/today.sh
+./scripts/why.sh
+./scripts/weekly-summary.sh
 ```
 
-## 6. Add The Scheduled Sync
+## 5. Scheduled Refresh
 
-Use this template for the NanoClaw-side scheduled task:
-
-```text
-templates/nanoclaw/telegram_health-tracker/oura-daily-sync.sh
-```
-
-The scheduled task environment should include the same runtime env values from `runtime.env`.
+For a server or always-on host, use the systemd templates documented in [vps-deployment.md](/Users/bknst/Projects/health-os/docs/vps-deployment.md). The scheduled refresh runs Oura sync and regenerates `.health-os/artifacts/today.md` and `.health-os/artifacts/weekly.md`.
 
 ## Notes
 
-- `OURA_TOKEN_FILE` must stay outside `/workspace/group/`.
+- `OURA_TOKEN_FILE` should stay outside `HEALTH_OS_WORKSPACE`.
 - `OURA_STRICT_HEARTRATE=false` is the pragmatic default. When heartrate is unavailable, sync can still proceed from sleep-derived resting HR.
-- If `OURA_TOKEN_FILE` is still missing, finish step 3 before attempting the dry-run sync.
+- If `OURA_TOKEN_FILE` is missing, complete OAuth before attempting Oura sync.
