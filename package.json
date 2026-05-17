@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private health tracker engine for NanoClaw integration.",
+  "description": "CLI-first health discovery app for training, recovery, and Oura-informed daily decisions.",
+  "bin": {
+    "health-os": "./src/cli.js"
+  },
   "scripts": {
     "test": "node --test tests/*.test.js"
   },

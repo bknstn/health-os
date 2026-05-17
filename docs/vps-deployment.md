@@ -1,16 +1,16 @@
 # VPS Deployment
 
-This is the production-oriented deployment shape for `health-os` on a VPS, with NanoClaw running on the same host.
+This is the production-oriented deployment shape for `health-os` as a standalone CLI app on a VPS.
 
 ## Recommended Layout
 
 - `health-os` repo at `/srv/health-os`
-- NanoClaw repo at `/srv/nanoclaw`
 - runtime env file at `/etc/health-os/runtime.env`
+- health workspace at `/var/lib/health-os/workspace`
 - Oura token file at `/var/lib/health-os/oura-token.json`
 - dedicated service user such as `healthos`
 
-The mutable tracker state still lives in the NanoClaw group workspace, not in the `health-os` repo checkout.
+Mutable tracker state lives in the health workspace, not in the repo checkout.
 
 ## Runtime Env
 
@@ -22,9 +22,8 @@ cp /srv/health-os/examples/runtime/health-os.env.example /etc/health-os/runtime.
 
 Important values:
 
-- `NANOCLAW_ROOT=/srv/nanoclaw`
 - `HEALTH_OS_ROOT=/srv/health-os`
-- `HEALTH_OS_WORKSPACE=<path to the NanoClaw health group folder>`
+- `HEALTH_OS_WORKSPACE=/var/lib/health-os/workspace`
 - `OURA_TOKEN_FILE=/var/lib/health-os/oura-token.json`
 - `OURA_CALLBACK_HOST=127.0.0.1`
 - `OURA_CALLBACK_PORT=8787`
@@ -65,7 +64,7 @@ sudo systemctl enable --now health-os-refresh.timer
 
 ## What The Units Do
 
-- `health-os-refresh.service` runs host-side Oura sync and refreshes the `today.md` and `weekly.md` artifacts
+- `health-os-refresh.service` runs Oura sync and refreshes the `today.md` and `weekly.md` artifacts
 - `health-os-refresh.timer` runs that service on schedule and catches up after downtime with `Persistent=true`
 - `health-os-oura-callback.service` listens for the Oura OAuth redirect and stores the token file
 
@@ -138,20 +137,3 @@ set +a
 
 /srv/health-os/scripts/vps-refresh.sh
 ```
-
-## NanoClaw Boundary
-
-NanoClaw still owns:
-
-- the Telegram bot token
-- the health chat registration
-- message handling
-- scheduled agent prompts if you want proactive daily briefs inside Telegram
-
-`health-os` on the VPS owns:
-
-- Oura token storage
-- scheduled sync
-- artifact generation
-
-The clean split is: NanoClaw orchestrates chats, `health-os` handles recovery/training state and the Oura sync path.
