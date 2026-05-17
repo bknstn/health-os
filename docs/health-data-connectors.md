@@ -65,7 +65,7 @@ Provider authentication can be OAuth, personal access token, local file import, 
 
 ## Integration Boundary
 
-External tools should treat Health OS as a local CLI service:
+External tools should treat Health OS as a CLI service:
 
 - call `sync-daily-source` to harvest a provider day
 - call `validate-daily-state` before sending externally normalized data

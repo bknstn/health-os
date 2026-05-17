@@ -1,6 +1,6 @@
 # Agent Integration Runbook
 
-Use this runbook when an external AI agent, command runner, scheduler, or automation layer needs to operate Health OS. OpenClaw, Hermes, and similar agents should treat Health OS as a local CLI service.
+Use this runbook when an external AI agent, command runner, scheduler, or automation layer needs to operate Health OS. OpenClaw, Hermes, and similar agents should treat Health OS as a CLI service.
 
 ## Contract
 
@@ -27,7 +27,7 @@ Do not:
 - writable workspace directory for Health OS state
 - provider credentials or token files available outside the workspace when syncing live sources
 
-Recommended local paths:
+Recommended paths:
 
 ```bash
 export HEALTH_OS_REPO="$HOME/Projects/health-os"
@@ -253,4 +253,4 @@ An agent can implement a daily check as:
 6. if sync fails, return the command, exit status, and error text
 ```
 
-This keeps the AI agent outside Health OS internals while still allowing it to sync health data, update local state, and explain the recommendation.
+This keeps the AI agent outside Health OS internals while still allowing it to sync health data, update workspace state, and explain the recommendation.
