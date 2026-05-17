@@ -1,6 +1,6 @@
 # Health OS
 
-Health OS is a local CLI for training, recovery, and daily readiness decisions.
+Health OS is a CLI for training, recovery, and daily readiness decisions.
 
 It owns deterministic health logic, workspace state, recovery ingestion, and provider connectors. It does not depend on a caller framework, dashboard, database service, or scheduler. Any external caller should use the CLI contract.
 
