@@ -80,6 +80,6 @@ test('syncDailyStateFromConnector fetches, normalizes, and ingests a provider da
   assert.equal(result.connector, 'oura');
   assert.equal(result.date, '2026-04-13');
   assert.equal(result.mode, 'FULL');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.match(fs.readFileSync(paths.dailyStateFile, 'utf8'), /2026-04-13,84,79,49/);
 });

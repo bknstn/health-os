@@ -106,13 +106,15 @@ test('fetchOuraDay requests readiness, sleep, and heartrate collections for one 
     }
   });
 
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.equal(bundle.date, '2026-04-13');
   assert.equal(bundle.readiness.data.length, 1);
   assert.ok(calls.some((call) => call.url.includes('/v2/usercollection/daily_readiness')));
   assert.ok(calls.some((call) => call.url.includes('/v2/usercollection/daily_sleep')));
+  assert.ok(calls.some((call) => call.url.includes('/v2/usercollection/sleep')));
   assert.ok(calls.some((call) => call.url.includes('/v2/usercollection/heartrate')));
   assert.ok(calls.some((call) => call.url.includes('start_date=2026-04-13')));
+  assert.ok(calls.some((call) => call.url.includes('start_date=2026-04-12')));
   assert.ok(calls.some((call) => call.url.includes('start_datetime=2026-04-13T00%3A00%3A00%2B00%3A00')));
   for (const call of calls) {
     assert.equal(call.init.headers.Authorization, 'Bearer access-1');

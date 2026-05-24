@@ -10,6 +10,7 @@ export const OURA_API_BASE_URL = 'https://api.ouraring.com';
 const DEFAULT_PATHS = {
   readiness: '/v2/usercollection/daily_readiness',
   sleep: '/v2/usercollection/daily_sleep',
+  sleepDetail: '/v2/usercollection/sleep',
   heartrate: '/v2/usercollection/heartrate'
 };
 
@@ -30,6 +31,12 @@ function toDateTimeRange(date) {
   };
 }
 
+function previousDate(date) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() - 1);
+  return parsed.toISOString().slice(0, 10);
+}
+
 function collectionUrl(apiBaseUrl, collectionPath, date) {
   const normalizedPath = collectionPath.startsWith('/') ? collectionPath : `/${collectionPath}`;
   const url = new URL(normalizedPath, apiBaseUrl);
@@ -37,11 +44,50 @@ function collectionUrl(apiBaseUrl, collectionPath, date) {
     const range = toDateTimeRange(date);
     url.searchParams.set('start_datetime', range.start);
     url.searchParams.set('end_datetime', range.end);
+  } else if (normalizedPath.endsWith('/sleep')) {
+    url.searchParams.set('start_date', previousDate(date));
+    url.searchParams.set('end_date', date);
   } else {
     url.searchParams.set('start_date', date);
     url.searchParams.set('end_date', date);
   }
   return url;
+}
+
+function dataRecords(payload) {
+  return Array.isArray(payload?.data) ? payload.data : [];
+}
+
+function pickDetailedSleepRecord(records, date) {
+  return (
+    records.find((record) => record.day === date && record.type === 'long_sleep' && record.average_hrv != null) ||
+    records.find((record) => record.day === date && record.average_hrv != null) ||
+    records.find((record) => record.day === date) ||
+    null
+  );
+}
+
+function mergeDetailedSleep(dailySleep, detailedSleep, date) {
+  const detail = pickDetailedSleepRecord(dataRecords(detailedSleep), date);
+  if (!detail) {
+    return dailySleep;
+  }
+
+  return {
+    ...dailySleep,
+    data: dataRecords(dailySleep).map((record) => {
+      if ((record.day || record.date) !== date) {
+        return record;
+      }
+      return {
+        ...record,
+        average_hrv: detail.average_hrv,
+        lowest_heart_rate: detail.lowest_heart_rate,
+        total_sleep_duration: detail.total_sleep_duration,
+        efficiency: detail.efficiency
+      };
+    })
+  };
 }
 
 async function parseJsonResponse(response) {
@@ -195,6 +241,7 @@ export async function fetchOuraDay({
   apiBaseUrl = OURA_API_BASE_URL,
   readinessPath = DEFAULT_PATHS.readiness,
   sleepPath = DEFAULT_PATHS.sleep,
+  sleepDetailPath = DEFAULT_PATHS.sleepDetail,
   heartratePath = DEFAULT_PATHS.heartrate,
   optionalHeartrate = true,
   fetchImpl = fetch
@@ -205,6 +252,19 @@ export async function fetchOuraDay({
     fetchOuraCollection({ accessToken, date, collectionPath: readinessPath, apiBaseUrl, fetchImpl }),
     fetchOuraCollection({ accessToken, date, collectionPath: sleepPath, apiBaseUrl, fetchImpl })
   ]);
+
+  let detailedSleep = { data: [] };
+  try {
+    detailedSleep = await fetchOuraCollection({
+      accessToken,
+      date,
+      collectionPath: sleepDetailPath,
+      apiBaseUrl,
+      fetchImpl
+    });
+  } catch {
+    detailedSleep = { data: [] };
+  }
 
   let heartrate = { data: [] };
   try {
@@ -221,7 +281,7 @@ export async function fetchOuraDay({
     }
   }
 
-  return { date, readiness, sleep, heartrate };
+  return { date, readiness, sleep: mergeDetailedSleep(sleep, detailedSleep, date), heartrate };
 }
 
 export function readOuraTokenFile(filePath) {
