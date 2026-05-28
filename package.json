@@ -8,7 +8,11 @@
     "health-os": "./src/cli.js"
   },
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "health:status": "src/scripts/today.sh",
+    "health:morning": "src/scripts/sync-daily-source.sh --source oura && src/scripts/today.sh",
+    "health:next": "src/scripts/next-workout.sh",
+    "health:weekly": "src/scripts/weekly-summary.sh"
   },
   "engines": {
     "node": ">=22"
