@@ -15,6 +15,9 @@ export function buildPaths(groupRootArg) {
     configDir: path.join(trackerRoot, 'config'),
     dataDir: path.join(trackerRoot, 'data'),
     artifactsDir: path.join(trackerRoot, 'artifacts'),
+    memoryDir: path.join(trackerRoot, 'memory'),
+    memoryEvidenceDir: path.join(trackerRoot, 'memory', 'evidence'),
+    memoryWikiDir: path.join(trackerRoot, 'memory', 'wiki'),
     personalDir: path.join(trackerRoot, 'personal'),
     personalRawDir: path.join(trackerRoot, 'personal', 'raw'),
     personalFilesDir: path.join(trackerRoot, 'personal', 'files'),
@@ -28,7 +31,10 @@ export function buildPaths(groupRootArg) {
     decisionLogFile: path.join(trackerRoot, 'data', 'decision_log.csv'),
     rulesHistoryFile: path.join(trackerRoot, 'data', 'rules_history.csv'),
     todayArtifactFile: path.join(trackerRoot, 'artifacts', 'today.md'),
-    weeklyArtifactFile: path.join(trackerRoot, 'artifacts', 'weekly.md')
+    weeklyArtifactFile: path.join(trackerRoot, 'artifacts', 'weekly.md'),
+    memorySchemaFile: path.join(trackerRoot, 'memory', 'SCHEMA.md'),
+    memoryIndexFile: path.join(trackerRoot, 'memory', 'index.md'),
+    memoryLogFile: path.join(trackerRoot, 'memory', 'log.md')
   };
 }
 
@@ -41,6 +47,9 @@ export function ensureWorkspace(paths) {
   ensureDir(paths.configDir);
   ensureDir(paths.dataDir);
   ensureDir(paths.artifactsDir);
+  ensureDir(paths.memoryDir);
+  ensureDir(paths.memoryEvidenceDir);
+  ensureDir(paths.memoryWikiDir);
   ensureDir(paths.personalDir);
   ensureDir(paths.personalRawDir);
   ensureDir(paths.personalFilesDir);

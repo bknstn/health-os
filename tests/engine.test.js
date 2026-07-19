@@ -106,4 +106,6 @@ test('workspace initialization creates personal raw and processed file areas', (
   assert.ok(paths.personalFilesDir.endsWith(path.join('.health-os', 'personal', 'files')));
   assert.equal(fs.existsSync(paths.personalRawDir), true);
   assert.equal(fs.existsSync(paths.personalFilesDir), true);
+  assert.equal(fs.existsSync(paths.memoryDir), true);
+  assert.equal(fs.existsSync(paths.memorySchemaFile), true);
 });
