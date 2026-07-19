@@ -20,6 +20,7 @@ Workspace data lives under `.health-os/`:
   config/
   data/
   artifacts/
+  memory/
   personal/raw/
   personal/files/
 ```
@@ -46,6 +47,9 @@ cat workout.txt | ./src/scripts/log-workout.sh
 ./src/scripts/today.sh
 ./src/scripts/why.sh
 ./src/scripts/weekly-summary.sh
+./src/scripts/memory-update.sh --end-date 2026-07-19
+./src/scripts/memory-context.sh --query "squat progression and recovery"
+./src/scripts/memory-lint.sh --date 2026-07-19
 ```
 
 Recovery ingestion:
@@ -64,6 +68,30 @@ Personal files:
 ./src/scripts/import-personal-file.sh --file medical-tests.pdf
 ./src/scripts/import-personal-file.sh --file medical-tests.md --kind processed
 ```
+
+## File-native Memory
+
+Health OS maintains private, LLM-friendly memory under `.health-os/memory/`. This is a derived Markdown layer over authoritative workspace data, not a replacement for the CSV records, configuration, personal files, or reproducible artifacts.
+
+The memory workflow deliberately uses ordinary files and lexical search rather than embeddings, a vector database, or a model-provider dependency:
+
+```bash
+# Compile a deterministic seven-day evidence bundle.
+./src/scripts/memory-update.sh --end-date 2026-07-19
+
+# Return bounded context for an external agent such as Hermes.
+./src/scripts/memory-context.sh \
+  --query "squat progression and recovery" \
+  --max-pages 5 \
+  --max-chars 12000
+
+# Validate metadata, provenance, review dates, and Markdown links.
+./src/scripts/memory-lint.sh --date 2026-07-19 --stale-days 90
+```
+
+`memory-update` does not perform LLM synthesis or medical inference. An external agent may maintain derived pages under `.health-os/memory/wiki/`, following `.health-os/memory/SCHEMA.md`. Observations, hypotheses, accepted personal rules, and general claims have distinct statuses; an accepted rule requires explicit human confirmation.
+
+See `docs/memory.md` for the directory model and maintenance loop.
 
 ## Connector Boundary
 
@@ -117,6 +145,7 @@ npm test
 Further docs:
 
 - `docs/agent-integration-runbook.md`
+- `docs/memory.md`
 - `docs/health-data-connectors.md`
 - `docs/oura-oauth.md`
 - `docs/personal-files.md`

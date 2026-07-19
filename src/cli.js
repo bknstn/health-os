@@ -22,6 +22,7 @@ import {
 } from './health-data-connectors.js';
 import { validateRecoveryPayload } from './recovery-contract.js';
 import { normalizeOuraPayloadFromFiles } from './oura-adapter.js';
+import { lintMemory, memoryContext, updateMemory } from './memory.js';
 import {
   appendWorkoutLog,
   buildNextWorkout,
@@ -337,9 +338,41 @@ async function main() {
       initialiseWorkspace(paths, repoRoot());
       process.stdout.write(renderWeeklySummary(paths, options['end-date'] || localDateString()));
       return;
+    case 'memory-update': {
+      initialiseWorkspace(paths, repoRoot());
+      const result = updateMemory(paths, options['end-date'] || localDateString());
+      process.stdout.write(jsonOutput(result));
+      return;
+    }
+    case 'memory-context': {
+      initialiseWorkspace(paths, repoRoot());
+      const maxChars = options['max-chars'] ? Number(options['max-chars']) : 12000;
+      const maxPages = options['max-pages'] ? Number(options['max-pages']) : 5;
+      if (!Number.isInteger(maxChars) || maxChars < 500) {
+        throw new Error('memory-context --max-chars must be an integer of at least 500');
+      }
+      if (!Number.isInteger(maxPages) || maxPages < 1) {
+        throw new Error('memory-context --max-pages must be a positive integer');
+      }
+      process.stdout.write(memoryContext(paths, options.query || '', { maxChars, maxPages }));
+      return;
+    }
+    case 'memory-lint': {
+      initialiseWorkspace(paths, repoRoot());
+      const staleDays = options['stale-days'] ? Number(options['stale-days']) : 90;
+      if (!Number.isInteger(staleDays) || staleDays < 1) {
+        throw new Error('memory-lint --stale-days must be a positive integer');
+      }
+      const result = lintMemory(paths, { nowDate: options.date, staleDays });
+      process.stdout.write(jsonOutput(result));
+      if (!result.ok) {
+        process.exitCode = 1;
+      }
+      return;
+    }
     default:
       process.stderr.write(
-        'Usage: node src/cli.js <init-workspace|log-workout|set-working-weight|next|ingest-daily-state|validate-daily-state|personal-raw-dir|personal-files-dir|import-personal-file|connectors|sync-daily-source|normalize-oura-json|oura-auth-url|oura-exchange-code|oura-refresh-token|oura-fetch-day|oura-sync-from-token|oura-listen-callback|today|why|weekly-summary> [--workspace PATH] [--input FILE|-]\n'
+        'Usage: node src/cli.js <init-workspace|log-workout|set-working-weight|next|ingest-daily-state|validate-daily-state|personal-raw-dir|personal-files-dir|import-personal-file|connectors|sync-daily-source|normalize-oura-json|oura-auth-url|oura-exchange-code|oura-refresh-token|oura-fetch-day|oura-sync-from-token|oura-listen-callback|today|why|weekly-summary|memory-update|memory-context|memory-lint> [--workspace PATH] [--input FILE|-]\n'
       );
       process.exitCode = 1;
   }

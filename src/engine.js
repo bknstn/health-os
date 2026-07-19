@@ -92,6 +92,16 @@ export function initialiseWorkspace(paths, repoRoot) {
       writeCsv(filePath, headers, []);
     }
   }
+
+  if (!fs.existsSync(paths.memorySchemaFile)) {
+    fs.copyFileSync(`${repoRoot}/config/memory-schema.md`, paths.memorySchemaFile);
+  }
+  if (!fs.existsSync(paths.memoryIndexFile)) {
+    fs.writeFileSync(paths.memoryIndexFile, '# Health OS Memory Index\n\n_No evidence or wiki pages yet._\n', 'utf8');
+  }
+  if (!fs.existsSync(paths.memoryLogFile)) {
+    fs.writeFileSync(paths.memoryLogFile, '# Health OS Memory Log\n', 'utf8');
+  }
 }
 
 export function loadTrainingPlan(paths) {

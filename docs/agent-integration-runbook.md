@@ -58,6 +58,7 @@ Write commands:
 - `init-workspace`
 - `log-workout`
 - `set-working-weight`
+- `memory-update`
 - `ingest-daily-state`
 - `import-personal-file`
 - `sync-daily-source`
@@ -78,6 +79,8 @@ Read-only commands:
 - `why`
 - `weekly-summary`
 - `next`
+- `memory-context`
+- `memory-lint`
 
 `oura-fetch-day` is read-only for the Health OS workspace, but it calls the Oura API and may write raw JSON if `--output-dir` is provided.
 
@@ -239,6 +242,19 @@ Avoid running multiple write commands against the same `HEALTH_OS_WORKSPACE` at 
 - `import-personal-file`
 
 Read-only brief commands may run after the write command completes.
+
+## File-native memory
+
+Health OS memory is private workspace state under `.health-os/memory/`. It is derived from authoritative data and artifacts and must not be copied into the agent's own long-term memory without preserving provenance.
+
+```bash
+cd "$HEALTH_OS_REPO"
+./src/scripts/memory-update.sh --end-date 2026-07-19
+./src/scripts/memory-context.sh --query "squat progression and recovery"
+./src/scripts/memory-lint.sh --date 2026-07-19
+```
+
+`memory-update` is a serialized write command. It deterministically compiles a weekly evidence seed; it does not perform LLM synthesis. `memory-context` is read-only and lexical. `memory-lint` emits JSON and exits nonzero for invalid pages. Before an agent edits `memory/wiki/*.md`, it must read `.health-os/memory/SCHEMA.md`. Only the human owner may confirm an `accepted_rule`.
 
 ## Minimal OpenClaw or Hermes Task
 
