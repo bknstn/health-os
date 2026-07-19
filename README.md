@@ -73,6 +73,8 @@ Personal files:
 
 Health OS maintains private, LLM-friendly memory under `.health-os/memory/`. This is a derived Markdown layer over authoritative workspace data, not a replacement for the CSV records, configuration, personal files, or reproducible artifacts.
 
+The design is inspired by Andrej Karpathy's [LLM Wiki concept](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): durable, human-readable files maintained as agent context, without requiring a RAG stack.
+
 The memory workflow deliberately uses ordinary files and lexical search rather than embeddings, a vector database, or a model-provider dependency:
 
 ```bash
