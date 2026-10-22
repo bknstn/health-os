@@ -2,7 +2,7 @@
 
 Health OS keeps private, runtime-only memory under `.health-os/memory/`. The directory is already covered by the repository's `.health-os/` ignore rule and must not be committed. It belongs to the selected Health OS workspace, alongside the data it describes.
 
-This is a small LLM Wiki-style contract, not RAG. There are no embeddings, vector database, model SDK, or network calls.
+The memory commands run locally without model API calls. The design rationale and LLM Wiki attribution are recorded in [ADR 0006](adr/0006-file-native-memory.md).
 
 ## Data model
 

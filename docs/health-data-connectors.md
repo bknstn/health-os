@@ -69,7 +69,7 @@ External tools should treat Health OS as a CLI service:
 
 - call `sync-daily-source` to harvest a provider day
 - call `validate-daily-state` before sending externally normalized data
-- call `today`, `why`, and `weekly-summary` for read-only briefs
+- call `today`, `why`, and `weekly-summary` for briefs; `today` and `weekly-summary` also write derived Markdown artifacts
 - avoid importing provider adapters directly unless implementing a connector
 
 This keeps Health OS reusable regardless of the caller.

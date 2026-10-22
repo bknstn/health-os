@@ -2,12 +2,12 @@
   "data": [
     {
       "day": "2026-04-13",
-      "score": 79,
-      "average_hrv": 49,
-      "lowest_heart_rate": 54,
-      "efficiency": 88,
-      "total_sleep_duration": 25800,
-      "timestamp": "2026-04-13T06:45:00+02:00"
+      "score": 90,
+      "average_hrv": 60,
+      "lowest_heart_rate": 50,
+      "efficiency": 90,
+      "total_sleep_duration": 28800,
+      "timestamp": "2026-04-13T07:00:00+00:00"
     }
   ]
 }

@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CLI-first health discovery app for training, recovery, and Oura-informed daily decisions.",
+  "description": "Local CLI for strength training logs, recovery decisions, and Oura synchronization.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bknstn/health-os.git"
+  },
   "bin": {
     "health-os": "./src/cli.js"
   },

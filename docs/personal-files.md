@@ -21,7 +21,7 @@ Use `.health-os/personal/files/` for processed text:
 - lab summaries derived from PDFs or images
 - curated user context that is safe for tools to read directly
 
-The repo-level `raw/` folder is legacy source material, not the runtime upload location. Runtime uploads belong in `.health-os/personal/raw/`; external tools should prefer `.health-os/personal/files/` when they need processed text.
+Runtime uploads belong in `.health-os/personal/raw/`; external tools should prefer `.health-os/personal/files/` when they need processed text. Keep both private and outside the source checkout.
 
 ## Commands
 

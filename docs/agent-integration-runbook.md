@@ -66,7 +66,7 @@ Write commands:
 - `oura-refresh-token`
 - `oura-listen-callback`
 
-Read-only commands:
+Query, validation, and export commands:
 
 - `connectors`
 - `validate-daily-state`
@@ -82,7 +82,7 @@ Read-only commands:
 - `memory-context`
 - `memory-lint`
 
-`oura-fetch-day` is read-only for the Health OS workspace, but it calls the Oura API and may write raw JSON if `--output-dir` is provided.
+CLI commands may create workspace directories or seed missing configuration. `today` and `weekly-summary` also write derived Markdown artifacts. `oura-fetch-day` calls the Oura API and may write raw JSON if `--output-dir` is provided. Serialize commands that can write to the same workspace.
 
 ## Daily Oura Sync
 
@@ -93,8 +93,6 @@ cd "$HEALTH_OS_REPO"
 ./src/scripts/sync-daily-source.sh \
   --source oura \
   --date 2026-04-13 \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
   --token-file "$OURA_TOKEN_FILE"
 ```
 
@@ -180,12 +178,13 @@ Agents should preserve provenance: keep original files unchanged in `personal/ra
 
 Use this when the token file does not exist or Oura reports re-authentication is required.
 
+Set `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, and `OURA_TOKEN_FILE` in the environment. Generate one `OURA_STATE` value for the attempt and pass the same value to the URL builder and callback listener. Keep credentials out of command arguments and logs; see the full [OAuth setup guide](oura-oauth.md).
+
 Build an authorization URL:
 
 ```bash
 cd "$HEALTH_OS_REPO"
 ./src/scripts/oura-build-auth-url.sh \
-  --client-id "$OURA_CLIENT_ID" \
   --redirect-uri "http://localhost:8787/callback"
 ```
 
@@ -194,22 +193,17 @@ Optionally listen for the OAuth callback and write the token file:
 ```bash
 cd "$HEALTH_OS_REPO"
 ./src/scripts/oura-listen-callback.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
   --redirect-uri "http://localhost:8787/callback" \
   --token-file "$OURA_TOKEN_FILE"
 ```
 
-If the agent receives an authorization code by another path, exchange it directly:
+If the agent receives an authorization code by another path, verify the returned state and supply the code as `OURA_CODE` in the environment. Exchange it and discard token stdout after the file is saved:
 
 ```bash
 cd "$HEALTH_OS_REPO"
 ./src/scripts/oura-exchange-code.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
   --redirect-uri "http://localhost:8787/callback" \
-  --code "$OURA_CODE" \
-  --token-file "$OURA_TOKEN_FILE"
+  --token-file "$OURA_TOKEN_FILE" > /dev/null
 ```
 
 Keep the token file outside `HEALTH_OS_WORKSPACE`.
@@ -219,7 +213,7 @@ Keep the token file outside `HEALTH_OS_WORKSPACE`.
 On any nonzero exit:
 
 1. stop the current Health OS operation
-2. preserve stdout and stderr in the agent run log
+2. inspect stdout and stderr locally; redact credentials and health data before retaining or sharing logs
 3. do not retry write commands blindly
 4. report the failed command and error text to the supervising user or scheduler
 
@@ -240,8 +234,11 @@ Avoid running multiple write commands against the same `HEALTH_OS_WORKSPACE` at 
 - `log-workout`
 - `set-working-weight`
 - `import-personal-file`
+- `today`
+- `weekly-summary`
+- `memory-update`
 
-Read-only brief commands may run after the write command completes.
+Brief commands should run after ingestion completes. Even query commands may initialize missing workspace directories or configuration.
 
 ## File-native memory
 
@@ -263,10 +260,10 @@ An agent can implement a daily check as:
 ```text
 1. cd $HEALTH_OS_REPO
 2. run ./src/scripts/init-workspace.sh
-3. run ./src/scripts/sync-daily-source.sh --source oura --date YYYY-MM-DD --client-id $OURA_CLIENT_ID --client-secret $OURA_CLIENT_SECRET --token-file $OURA_TOKEN_FILE
+3. run ./src/scripts/sync-daily-source.sh --source oura --date YYYY-MM-DD --token-file $OURA_TOKEN_FILE (client credentials come from the environment)
 4. if sync succeeds, run ./src/scripts/today.sh --date YYYY-MM-DD
 5. return the today output to the user
-6. if sync fails, return the command, exit status, and error text
+6. if sync fails, return the command, exit status, and error text after redacting credentials and personal data
 ```
 
 This keeps the AI agent outside Health OS internals while still allowing it to sync health data, update workspace state, and explain the recommendation.

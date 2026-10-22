@@ -9,4 +9,19 @@ coverage/
 *.log
 __pycache__/
 .DS_Store
-nanoclaw/
+
+# Private exports and legacy upload locations at the repository root.
+/raw/
+/personal/
+/data/
+/artifacts/
+/exports/
+/private/
+
+# Provider credentials and private keys, regardless of their directory.
+*credentials*.json
+*secret*.json
+*.pem
+*.key
+*.p12
+*.pfx

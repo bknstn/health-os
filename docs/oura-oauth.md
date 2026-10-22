@@ -1,4 +1,4 @@
-# Oura OAuth Notes
+# Oura OAuth setup
 
 This repo treats Oura authentication as a connector runtime concern and keeps the health engine independent of raw credentials, provider payloads, and caller-specific integrations.
 
@@ -31,7 +31,30 @@ This repo does not store:
 - access token
 - refresh token
 
-Keep tokens outside the health workspace. The recommended path is `$HOME/.config/health-os/oura-token.json` locally or `/var/lib/health-os/oura-token.json` on a server.
+Keep tokens outside the repository checkout and health workspace. The recommended path is `$HOME/.config/health-os/oura-token.json` locally or `/var/lib/health-os/oura-token.json` on a server. Token exchange and refresh commands print the complete token JSON; the examples below discard that output after saving the file. See [SECURITY.md](../SECURITY.md).
+
+## Prerequisites
+
+1. Register an application in [Oura's application settings](https://cloud.ouraring.com/oauth/applications).
+2. Register `http://localhost:8787/callback` as a redirect URI for local use.
+3. Supply `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` through your process environment or secret manager. The CLI does not automatically load `.env` files. Avoid putting literal secrets in shell commands or shared logs.
+4. Initialize a private workspace as described in the [README](../README.md#quick-start).
+
+Choose the token location and generate a state value for this authorization attempt:
+
+```bash
+export OURA_TOKEN_FILE="$HOME/.config/health-os/oura-token.json"
+export OURA_REDIRECT_URI="http://localhost:8787/callback"
+export OURA_STATE="$(openssl rand -hex 16)"
+```
+
+Build the authorization URL with the command below. In another terminal with the same environment and state value, start the local callback listener before opening the URL:
+
+```bash
+./src/scripts/oura-listen-callback.sh
+```
+
+Complete authorization in your browser. The listener verifies the supplied state and saves the token file. This flow does not require manually copying the authorization code. The direct exchange and refresh commands below are alternatives for callers that manage those steps themselves; verify the returned state before a manual code exchange.
 
 ## Supported Inputs
 
@@ -47,29 +70,22 @@ Build an authorization URL:
 
 ```bash
 ./src/scripts/oura-build-auth-url.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --redirect-uri "http://localhost:8787/callback" \
-  --state "$(openssl rand -hex 16)"
+  --redirect-uri "$OURA_REDIRECT_URI" \
+  --state "$OURA_STATE"
 ```
 
-Exchange a returned `code` and persist token JSON outside the workspace:
+For a manual exchange, supply the returned code as `OURA_CODE` in the environment after verifying the state. Persist token JSON outside the workspace:
 
 ```bash
 ./src/scripts/oura-exchange-code.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
-  --redirect-uri "http://localhost:8787/callback" \
-  --code "$OURA_CODE" \
-  --token-file "$HOME/.config/health-os/oura-token.json"
+  --token-file "$OURA_TOKEN_FILE" > /dev/null
 ```
 
 Refresh a stored token in place:
 
 ```bash
 ./src/scripts/oura-refresh-token.sh \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
-  --token-file "$HOME/.config/health-os/oura-token.json"
+  --token-file "$OURA_TOKEN_FILE" > /dev/null
 ```
 
 Fetch raw Oura collections for one day:
@@ -97,8 +113,6 @@ Fetch, normalize, and ingest through the provider-neutral connector command:
 ./src/scripts/sync-daily-source.sh \
   --source oura \
   --date 2026-04-13 \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
   --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
@@ -107,8 +121,6 @@ The legacy Oura-specific command is still supported and uses the same connector 
 ```bash
 ./src/scripts/oura-sync-from-token.sh \
   --date 2026-04-13 \
-  --client-id "$OURA_CLIENT_ID" \
-  --client-secret "$OURA_CLIENT_SECRET" \
   --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
@@ -122,9 +134,10 @@ The live fetch helpers default to these v2 collection paths:
 
 - `/v2/usercollection/daily_readiness`
 - `/v2/usercollection/daily_sleep`
+- `/v2/usercollection/sleep` (detailed sleep metrics, merged before normalization)
 - `/v2/usercollection/heartrate`
 
-The OAuth endpoints and required scopes above were checked against Oura's official authentication and error-handling docs on 2026-05-17. The collection paths are the repo defaults for the v2 usercollection flow and can be overridden at runtime with:
+The OAuth endpoints and scope descriptions above were checked against Oura's official authentication docs on 2026-10-22. These collection paths describe the current implementation; readiness, daily sleep, and heartrate paths can be overridden at runtime with:
 
 - `OURA_READINESS_PATH`
 - `OURA_SLEEP_PATH`
