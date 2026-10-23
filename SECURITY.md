@@ -7,10 +7,12 @@ Health OS handles sensitive health records and provider credentials. Use a priva
 - Workspace CSVs, imported documents, generated reports, and memory pages are ordinary files without application-level encryption. Protect them with operating-system permissions and secure backups.
 - Keep client secrets in your process environment or a secret manager. Prefer environment variables over credential arguments that may appear in process listings or command history. The CLI does not automatically load `.env` files.
 - Store Oura token JSON outside the checkout and workspace. The token writer uses owner-only file permissions (`0600`) and replaces the file atomically.
-- `oura-exchange-code` and `oura-refresh-token` print complete token JSON, even when `--token-file` is supplied. Do not capture their stdout in shared logs, screenshots, CI artifacts, or issue reports. Redirect it to `/dev/null` when only the saved file is needed.
+- `oura-exchange-code` and `oura-refresh-token` require `--token-file` or `OURA_TOKEN_FILE` by default and print only storage metadata. Use `--export-token true` only when deliberately handling token contents; treat that output as a secret.
 - Raw provider exports and command outputs may contain health data. Use the invented [example fixtures](examples/README.md) when reporting problems.
 - `.gitignore` prevents ordinary accidental additions; it does not remove tracked files, rewrite history, encrypt files, or prevent `git add -f`.
 - External agents receive the data you pass to them. Review their access and retention settings before sharing workspace output.
+- Health OS coordinates covered CLI writes with local process locks and atomic per-file replacements. A killed process can leave a lock requiring manual inspection; never remove a lock based only on its age. Direct external writes do not participate in this protocol, and multi-file CSV changes are not transactions.
+- `--json` command results are bounded and may carry a `truncation` field. JSON-mode errors use stdout and preserve nonzero exit status; avoid retaining sensitive payloads from any mode in shared logs.
 
 ## Before publishing changes
 

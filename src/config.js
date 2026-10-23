@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { atomicCopyFileSync } from './coordination.js';
 
 export function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -7,7 +8,7 @@ export function readJson(filePath) {
 
 export function copyIfMissing(sourcePath, targetPath) {
   if (!fs.existsSync(targetPath)) {
-    fs.copyFileSync(sourcePath, targetPath);
+    atomicCopyFileSync(sourcePath, targetPath, { mode: 0o600 });
   }
 }
 

@@ -96,6 +96,64 @@ export function parseWorkoutLog(inputText) {
   };
 }
 
+export function validateWorkoutLogPayload(input) {
+  const fail = (message) => {
+    const error = new Error(message);
+    error.code = 'HEALTH_OS_INPUT_INVALID';
+    throw error;
+  };
+  const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!isRecord(input) || !isRecord(input.session) || !Array.isArray(input.exercises)) {
+    fail('JSON workout input must contain session and exercises fields');
+  }
+  const allowedSession = new Set(['day', 'actual_mode', 'duration_minutes', 'session_rpe', 'energy_pre', 'soreness_pre', 'notes']);
+  if (Object.keys(input).some((key) => !['session', 'exercises'].includes(key)) ||
+      Object.keys(input.session).some((key) => !allowedSession.has(key))) {
+    fail('JSON workout input contains unsupported fields');
+  }
+  const session = input.session;
+  for (const key of ['day', 'actual_mode']) {
+    if (typeof session[key] !== 'string' || !session[key]) fail(`JSON workout session.${key} must be a non-empty string`);
+  }
+  if (!['A', 'B'].includes(session.day)) fail('JSON workout session.day must be A or B');
+  if (!['FULL', 'BASE', 'LIGHT'].includes(session.actual_mode)) fail('JSON workout session.actual_mode must be FULL, BASE, or LIGHT');
+  const numericSession = {};
+  for (const key of ['duration_minutes', 'session_rpe', 'energy_pre', 'soreness_pre']) {
+    if (typeof session[key] !== 'number' || !Number.isFinite(session[key])) fail(`JSON workout session.${key} must be a finite number`);
+    numericSession[key] = session[key];
+  }
+  if (session.notes !== undefined && typeof session.notes !== 'string') fail('JSON workout session.notes must be a string');
+  if (input.exercises.length === 0) fail('JSON workout input must include at least one exercise');
+  const exercises = input.exercises.map((exercise, index) => {
+    if (!isRecord(exercise) || Object.keys(exercise).some((key) => !['exercise_key', 'sets'].includes(key))) {
+      fail(`JSON workout exercises[${index}] has an invalid shape`);
+    }
+    if (typeof exercise.exercise_key !== 'string' || !exercise.exercise_key.trim() || !Array.isArray(exercise.sets) || exercise.sets.length === 0) {
+      fail(`JSON workout exercises[${index}] requires exercise_key and non-empty sets`);
+    }
+    const sets = exercise.sets.map((set, setIndex) => {
+      if (!isRecord(set) || Object.keys(set).some((key) => !['weight', 'reps'].includes(key))) {
+        fail(`JSON workout exercises[${index}].sets[${setIndex}] has an invalid shape`);
+      }
+      const validWeight = set.weight === 'bw' || (typeof set.weight === 'number' && Number.isFinite(set.weight) && set.weight >= 0);
+      if (!validWeight || !Number.isInteger(set.reps) || set.reps < 1) {
+        fail(`JSON workout exercises[${index}].sets[${setIndex}] requires a non-negative weight or "bw" and positive integer reps`);
+      }
+      return { weight: set.weight, reps: set.reps };
+    });
+    return { exercise_key: exercise.exercise_key.trim(), sets };
+  });
+  return {
+    session: {
+      day: session.day,
+      actual_mode: session.actual_mode,
+      ...numericSession,
+      notes: session.notes || ''
+    },
+    exercises
+  };
+}
+
 export function estimateE1rm(weight, reps) {
   if (!Number.isFinite(weight) || !Number.isFinite(reps)) {
     return '';

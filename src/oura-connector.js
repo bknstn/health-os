@@ -6,7 +6,8 @@ import {
   writeOuraDayBundle,
   writeOuraTokenFile
 } from './oura-api.js';
-import { normalizeOuraPayload } from './oura-adapter.js';
+import { normalizeOuraObservationSet, normalizeOuraPayload } from './oura-adapter.js';
+import { withTokenFileLock } from './coordination.js';
 
 function pickTokenPath(options, env) {
   return options['token-file'] || env.OURA_TOKEN_FILE || '';
@@ -23,33 +24,38 @@ function providerPath(options, env, optionName, envName) {
 export const ouraConnector = {
   id: 'oura',
   label: 'Oura Ring',
-  capabilities: ['oauth2', 'daily-recovery', 'raw-bundle'],
+  capabilities: ['oauth2', 'daily-recovery', 'wearable-observations', 'raw-bundle'],
   requiredMetrics: ['readiness_score', 'sleep_score', 'hrv', 'resting_hr'],
+  observationSchemaVersions: [1],
+  physicalMetrics: ['hrv', 'resting_hr', 'sleep_efficiency', 'total_sleep_minutes', 'temperature_deviation'],
+  proprietaryScores: ['readiness_score', 'sleep_score'],
 
   async resolveAuth({ options, env }) {
     const tokenPath = pickTokenPath(options, env);
-    const fileToken = tokenPath ? readOuraTokenFile(tokenPath) : null;
-    let tokenPayload = fileToken;
+    const resolve = async (resolvedTokenPath = tokenPath) => {
+      const fileToken = resolvedTokenPath ? readOuraTokenFile(resolvedTokenPath) : null;
+      let tokenPayload = fileToken;
 
-    if (!tokenPayload?.access_token && !options['access-token']) {
-      throw new Error('oura connector requires --token-file or --access-token');
-    }
-
-    if (tokenPayload?.refresh_token) {
-      tokenPayload = await refreshOuraAccessToken({
-        refreshToken: tokenPayload.refresh_token,
-        clientId: options['client-id'] || env.OURA_CLIENT_ID,
-        clientSecret: options['client-secret'] || env.OURA_CLIENT_SECRET
-      });
-      if (tokenPath) {
-        writeOuraTokenFile(tokenPath, tokenPayload);
+      if (!tokenPayload?.access_token && !options['access-token']) {
+        throw new Error('oura connector requires --token-file or --access-token');
       }
-    }
 
-    return {
-      accessToken: options['access-token'] || tokenPayload?.access_token,
-      tokenRefreshed: Boolean(fileToken?.refresh_token)
+      if (tokenPayload?.refresh_token) {
+        tokenPayload = await refreshOuraAccessToken({
+          refreshToken: tokenPayload.refresh_token,
+          clientId: options['client-id'] || env.OURA_CLIENT_ID,
+          clientSecret: options['client-secret'] || env.OURA_CLIENT_SECRET,
+          fetchImpl: options.fetchImpl
+        });
+        writeOuraTokenFile(resolvedTokenPath, tokenPayload);
+      }
+
+      return {
+        accessToken: options['access-token'] || tokenPayload?.access_token,
+        tokenRefreshed: Boolean(fileToken?.refresh_token)
+      };
     };
+    return tokenPath ? withTokenFileLock(tokenPath, resolve) : resolve();
   },
 
   async fetchDaily({ date, options, env, auth }) {
@@ -66,12 +72,27 @@ export const ouraConnector = {
   },
 
   normalizeDaily({ date, rawBundle, baselines }) {
-    return normalizeOuraPayload({
+    try {
+      return normalizeOuraPayload({
+        date,
+        readinessJson: rawBundle.readiness,
+        sleepJson: rawBundle.sleep,
+        heartrateJson: rawBundle.heartrate,
+        baselines
+      });
+    } catch (error) {
+      if (error?.code === 'HEALTH_OS_RECOVERY_INCOMPLETE') return null;
+      throw error;
+    }
+  },
+
+  normalizeObservations({ date, rawBundle, baselineCoverage }) {
+    return normalizeOuraObservationSet({
       date,
       readinessJson: rawBundle.readiness,
       sleepJson: rawBundle.sleep,
       heartrateJson: rawBundle.heartrate,
-      baselines
+      baselineCoverage
     });
   },
 

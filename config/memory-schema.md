@@ -36,7 +36,9 @@ Allowed epistemic statuses:
 
 Required fields are `title`, `status`, `confidence`, `evidence_start`, `evidence_end`, `last_reviewed`, and `provenance`. Dates use `YYYY-MM-DD`. Confidence is `low`, `medium`, or `high`. `evidence_start` must not be after `evidence_end`.
 
-`provenance` is a JSON array of source paths or URLs. A personal observation or hypothesis must cite the relevant evidence bundle or authoritative workspace source. An accepted rule must never be promoted automatically: only the human owner can confirm it, recorded as `human_confirmed: true`.
+`provenance` is a JSON array of source paths, URLs, or HealthEvent references in the form `health-event:<uuid>@<revision>`. A personal observation or hypothesis must cite the relevant evidence bundle or authoritative workspace source. An accepted rule must never be promoted automatically: only the human owner can confirm it, recorded as `human_confirmed: true`.
+
+HealthEvent references identify a specific event revision. After any successful event mutation, derived memory is pending review and `memory-context` fails closed. Review affected evidence and wiki pages, update event references to the current revisions (or remove unsupported claims), then run `context-revalidate-memory --generation <current-generation>`. The command validates every event reference against the current EventStore before clearing the review gate. See the current workspace guide for the full HealthEvent and memory-review contract. This file is a starter schema copied into new workspaces; existing private `memory/SCHEMA.md` files are preserved and should be checked against the current guide.
 
 ## Maintenance contract
 

@@ -144,6 +144,25 @@ test('fetchOuraDay tolerates heartrate failures by default', async () => {
   assert.deepEqual(bundle.heartrate, { data: [] });
 });
 
+test('provider error bodies are not copied into routine exceptions', async () => {
+  const secret = 'synthetic-secret-token-value';
+  await assert.rejects(refreshOuraAccessToken({
+    refreshToken: secret,
+    clientId: 'synthetic-client',
+    clientSecret: 'synthetic-client-secret',
+    fetchImpl: async () => ({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      async text() { return JSON.stringify({ error_description: `invalid refresh ${secret}` }); }
+    })
+  }), (error) => {
+    assert.match(error.message, /status 401/);
+    assert.doesNotMatch(error.message, /synthetic-secret-token-value|synthetic-client-secret/);
+    return true;
+  });
+});
+
 test('writeOuraTokenFile stores token files with owner-only permissions', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-os-token-'));
   const tokenFile = path.join(tempDir, 'oura-token.json');

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "session_selection": {
+    "strategy": "weekday_then_alternate",
+    "first_day_type": "first_plan_key",
+    "weekday_day_types": {},
+    "allow_explicit_session": true
+  },
+  "substitutions": {
+    "max_per_session": 2,
+    "allowed": []
+  },
+  "recovery": {
+    "max_age_days": 1,
+    "baseline_window_days": 28,
+    "baseline_min_observed_days": 14,
+    "allow_legacy_unscoped_baseline": false
+  },
+  "subjective": {
+    "max_age_days": 7,
+    "events": {
+      "subjective.energy": {
+        "field": "value",
+        "minimum": 1,
+        "maximum": 5,
+        "adjustment": {
+          "operator": "lte",
+          "threshold": 2,
+          "target_sets_delta": -1
+        }
+      },
+      "subjective.soreness": {
+        "field": "value",
+        "minimum": 0,
+        "maximum": 5,
+        "adjustment": {
+          "operator": "gte",
+          "threshold": 4,
+          "target_sets_delta": -1
+        }
+      },
+      "subjective.pain": {
+        "field": "value",
+        "minimum": 0,
+        "maximum": 10,
+        "adjustment": null
+      }
+    }
+  }
+}

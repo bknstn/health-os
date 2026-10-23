@@ -20,6 +20,12 @@ The memory commands run locally without model API calls. The design rationale an
 
 Structured data, original personal files, configuration, and reproducible artifacts remain the sources of truth. Memory pages are derived context. `SCHEMA.md` defines required page metadata, allowed epistemic statuses, provenance rules, and the human confirmation gate for `accepted_rule`.
 
+Subjective HealthEvents live in the private, schema-versioned SQLite store at `data/events.sqlite`; existing workout and recovery CSVs remain authoritative for those records. Each successful event mutation advances a generation and marks derived memory pending in `memory/event-review.json`. Until the current generation is explicitly reviewed, `memory-context` fails closed, including when a completed request with the same idempotency key exists. `memory-lint` reports the pending gate. After updating affected wiki/evidence pages, run `context-revalidate-memory --generation N` with the exact generation reported by the CLI. Revalidation checks the marker against every current SQLite event row and rejects unknown, deleted, superseded, or stale-revision references in both `memory/wiki/` and `memory/evidence/`.
+
+Use `health-event:<lowercase-uuid>@<revision>` in Markdown when a claim depends on a stored event. Keep the reference current after correction. Removing a deleted event's stale reference is required before revalidation. The gate is workspace-wide, so one event change blocks all derived-memory retrieval until review completes. Health OS never edits these Markdown pages. Event deletion scrubs the current live payload and revision digests, but older memory-context results may remain in `.health-os/operations/`, and SQLite WALs and independent backups have their own retention. The CLI blocks stale result replay; expire stored operations/backups separately if deletion must cover retained copies. See [the workspace guide](framework-and-workspace.md#healthevents-and-the-unified-timeline).
+
+A personal card and long-form processed health documents can remain Markdown under `personal/files/`, managed by the external agent. They are a separate layer from derived wiki pages. The current memory retrieval command does not automatically load those documents or a profile; the agent must select and read relevant files separately. See [framework and workspace boundaries](framework-and-workspace.md) for the storage and ownership model.
+
 ## Commands
 
 Compile the seven-day window ending on an explicit date:
@@ -39,7 +45,7 @@ Retrieve bounded lexical context for an external agent:
   --max-chars 12000
 ```
 
-The command searches `wiki/` and `evidence/` using ordinary terms, returns the index plus the highest-scoring Markdown pages, and never calls the network.
+The command searches `wiki/` and `evidence/` using ordinary terms, returns the index plus the highest-scoring Markdown pages, and never calls the network. It does not search `personal/files/` or provide semantic/vector retrieval.
 
 Validate maintained memory:
 

@@ -1,7 +1,10 @@
 import { readCsv } from './csv.js';
 
-function toDate(dateString) {
-  return new Date(`${dateString}T12:00:00`);
+function strictUtcDate(dateString) {
+  if (typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return null;
+  const timestamp = Date.parse(`${dateString}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== dateString) return null;
+  return timestamp;
 }
 
 function average(values) {
@@ -12,17 +15,20 @@ function average(values) {
 }
 
 function metricValues(rows, metricName, targetDate, windowDays) {
-  const target = toDate(targetDate);
-  return rows
-    .filter((row) => row.metric_name === metricName)
-    .filter((row) => row.date < targetDate)
-    .filter((row) => {
-      const diffMs = target.getTime() - toDate(row.date).getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      return diffDays >= 1 && diffDays <= windowDays;
-    })
-    .map((row) => Number(row.metric_value))
-    .filter((value) => Number.isFinite(value));
+  const target = strictUtcDate(targetDate);
+  if (target === null) return [];
+  const valuesByDate = new Map();
+  for (const row of rows) {
+    if (row.metric_name !== metricName) continue;
+    const rowDate = strictUtcDate(row.date);
+    if (rowDate === null || rowDate >= target) continue;
+    const diffDays = (target - rowDate) / 86_400_000;
+    if (diffDays < 1 || diffDays > windowDays) continue;
+    if (typeof row.metric_value !== 'string' || row.metric_value.trim() === '') continue;
+    const value = Number(row.metric_value);
+    if (Number.isFinite(value)) valuesByDate.set(row.date, value);
+  }
+  return [...valuesByDate.values()];
 }
 
 export function computeWorkspaceBaselines(paths, targetDate, windowDays = 28) {

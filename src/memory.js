@@ -1,5 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { atomicWriteFileSync } from './coordination.js';
+import {
+  assertMemoryEventProvenanceCurrent,
+  readEventReviewState,
+  validateEventProvenanceMarkdown
+} from './event-memory-review.js';
 
 import { renderWeeklySummary } from './engine.js';
 
@@ -101,7 +107,7 @@ export function rebuildMemoryIndex(paths) {
     lines.push('');
   }
   const output = `${lines.join('\n').trimEnd()}\n`;
-  fs.writeFileSync(paths.memoryIndexFile, output, 'utf8');
+  atomicWriteFileSync(paths.memoryIndexFile, output, { encoding: 'utf8' });
   return output;
 }
 
@@ -138,12 +144,12 @@ export function updateMemory(paths, endDate) {
     weeklySummary,
     ''
   ].join('\n');
-  fs.writeFileSync(evidenceFile, content, 'utf8');
+  atomicWriteFileSync(evidenceFile, content, { encoding: 'utf8' });
 
   const logLine = `- ${startDate} to ${endDate}: compiled [weekly evidence](evidence/weekly-${endDate}.md)`;
   const currentLog = fs.readFileSync(paths.memoryLogFile, 'utf8').trimEnd();
   if (!currentLog.split('\n').includes(logLine)) {
-    fs.writeFileSync(paths.memoryLogFile, `${currentLog}\n${logLine}\n`, 'utf8');
+    atomicWriteFileSync(paths.memoryLogFile, `${currentLog}\n${logLine}\n`, { encoding: 'utf8' });
   }
   rebuildMemoryIndex(paths);
   return {
@@ -159,6 +165,7 @@ function queryTerms(query) {
 }
 
 export function memoryContext(paths, query, { maxChars = 12000, maxPages = 5 } = {}) {
+  assertMemoryEventProvenanceCurrent(paths);
   const terms = queryTerms(query);
   if (terms.length === 0) {
     throw new Error('memory-context requires a non-empty --query');
@@ -227,10 +234,27 @@ function linkedMarkdownTargets(content) {
 export function lintMemory(paths, { nowDate, staleDays = 90 } = {}) {
   const today = nowDate || new Date().toISOString().slice(0, 10);
   const findings = [];
+  let eventReviewState = null;
+  try {
+    eventReviewState = readEventReviewState(paths, { allowPending: true });
+    if (eventReviewState && (eventReviewState.pending || eventReviewState.reviewed_generation < eventReviewState.required_generation)) {
+      findings.push(finding('error', 'event_memory_review_required', 'event-review.json',
+        `Event generation ${eventReviewState.required_generation} changed derived-memory inputs; review wiki/evidence and run context-revalidate-memory --generation ${eventReviewState.required_generation}.`));
+    }
+  } catch (error) {
+    findings.push(finding('error', 'event_review_state_invalid', 'event-review.json', error.message));
+  }
   const files = [...markdownFiles(paths.memoryEvidenceDir), ...markdownFiles(paths.memoryWikiDir)];
   for (const file of files) {
     const relative = posixRelative(paths.memoryDir, file);
     const content = fs.readFileSync(file, 'utf8');
+    for (const issue of validateEventProvenanceMarkdown(content, eventReviewState)) {
+      const code = issue.reason === 'deleted' ? 'deleted_event_provenance' :
+        issue.reason === 'superseded' ? 'superseded_event_provenance' :
+          issue.reason === 'unknown_event' ? 'unknown_event_provenance' : 'stale_event_provenance';
+      findings.push(finding('error', code, relative,
+        `${issue.reference} is ${issue.reason === 'stale_revision' ? `stale; current revision is ${issue.current_revision}` : issue.reason}.`));
+    }
     const { metadata } = parseFrontmatter(content);
     if (!metadata) {
       findings.push(finding('error', 'missing_frontmatter', relative, 'Page must begin with metadata frontmatter.'));

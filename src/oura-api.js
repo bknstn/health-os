@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { atomicWriteFileSync } from './coordination.js';
 
 export const OURA_AUTHORIZE_URL = 'https://cloud.ouraring.com/oauth/authorize';
 export const OURA_TOKEN_URL = 'https://api.ouraring.com/oauth/token';
@@ -106,8 +106,7 @@ async function requestJson(url, init, fetchImpl = fetch) {
   const response = await fetchImpl(url, init);
   const payload = await parseJsonResponse(response);
   if (!response.ok) {
-    const detail = payload.detail || payload.error_description || payload.error || response.statusText;
-    throw new Error(`Oura API ${response.status} ${detail}`);
+    throw new Error(`Oura API request failed with status ${response.status}`);
   }
   return payload;
 }
@@ -285,23 +284,19 @@ export async function fetchOuraDay({
 }
 
 export function readOuraTokenFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'EACCES') throw error;
+    const invalid = new Error('Oura token file is not valid JSON');
+    invalid.code = 'HEALTH_OS_TOKEN_FILE_INVALID';
+    throw invalid;
+  }
 }
 
 export function writeOuraTokenFile(filePath, tokenPayload) {
   ensureDirectory(path.dirname(filePath));
-  const tempPath = path.join(
-    path.dirname(filePath),
-    `.tmp-${path.basename(filePath)}-${process.pid}-${randomUUID()}`
-  );
-  fs.writeFileSync(tempPath, `${JSON.stringify(tokenPayload, null, 2)}\n`, {
-    encoding: 'utf8',
-    flag: 'wx',
-    mode: 0o600
-  });
-  fs.chmodSync(tempPath, 0o600);
-  fs.renameSync(tempPath, filePath);
-  fs.chmodSync(filePath, 0o600);
+  atomicWriteFileSync(filePath, `${JSON.stringify(tokenPayload, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 export function ensureDirectory(dirPath) {
@@ -310,9 +305,9 @@ export function ensureDirectory(dirPath) {
 
 export function writeOuraDayBundle(outputDir, bundle) {
   ensureDirectory(outputDir);
-  fs.writeFileSync(path.join(outputDir, 'readiness.json'), `${JSON.stringify(bundle.readiness, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(path.join(outputDir, 'sleep.json'), `${JSON.stringify(bundle.sleep, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(path.join(outputDir, 'heartrate.json'), `${JSON.stringify(bundle.heartrate, null, 2)}\n`, 'utf8');
+  atomicWriteFileSync(path.join(outputDir, 'readiness.json'), `${JSON.stringify(bundle.readiness, null, 2)}\n`, { encoding: 'utf8' });
+  atomicWriteFileSync(path.join(outputDir, 'sleep.json'), `${JSON.stringify(bundle.sleep, null, 2)}\n`, { encoding: 'utf8' });
+  atomicWriteFileSync(path.join(outputDir, 'heartrate.json'), `${JSON.stringify(bundle.heartrate, null, 2)}\n`, { encoding: 'utf8' });
 }
 
 export function temporaryOuraOutputDir(prefix = 'health-os-oura-') {

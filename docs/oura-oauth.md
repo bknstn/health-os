@@ -31,7 +31,7 @@ This repo does not store:
 - access token
 - refresh token
 
-Keep tokens outside the repository checkout and health workspace. The recommended path is `$HOME/.config/health-os/oura-token.json` locally or `/var/lib/health-os/oura-token.json` on a server. Token exchange and refresh commands print the complete token JSON; the examples below discard that output after saving the file. See [SECURITY.md](../SECURITY.md).
+Keep tokens outside the repository checkout and health workspace. The recommended path is `$HOME/.config/health-os/oura-token.json` locally or `/var/lib/health-os/oura-token.json` on a server. Token exchange and refresh require a token-file destination by default and print only storage metadata. Use `--export-token true` only when deliberately handling token contents. See [SECURITY.md](../SECURITY.md).
 
 ## Prerequisites
 
@@ -78,14 +78,14 @@ For a manual exchange, supply the returned code as `OURA_CODE` in the environmen
 
 ```bash
 ./src/scripts/oura-exchange-code.sh \
-  --token-file "$OURA_TOKEN_FILE" > /dev/null
+  --token-file "$OURA_TOKEN_FILE"
 ```
 
 Refresh a stored token in place:
 
 ```bash
 ./src/scripts/oura-refresh-token.sh \
-  --token-file "$OURA_TOKEN_FILE" > /dev/null
+  --token-file "$OURA_TOKEN_FILE"
 ```
 
 Fetch raw Oura collections for one day:
@@ -124,7 +124,7 @@ The legacy Oura-specific command is still supported and uses the same connector 
   --token-file "$HOME/.config/health-os/oura-token.json"
 ```
 
-The connector refreshes the token first when a `refresh_token` is present, writes the newly returned token back to the token file, then fetches readiness, sleep, and heartrate collections, normalizes them, and ingests the day into `.health-os/`.
+The connector refreshes the token first when a `refresh_token` is present, writes the newly returned token back to the token file, then fetches readiness, sleep, and heartrate collections, normalizes them, and ingests the day into `.health-os/`. Local token-file locking prevents overlapping Health OS refreshes, but the provider's single-use token rotation and local replacement are not one distributed transaction; a crash or storage failure after provider success may require reauthorization.
 
 If the health workspace already contains prior recovery history, the adapter computes 28-day HRV and resting-HR baselines automatically from `.health-os/data/recovery_snapshots.csv`. A separate baselines file is only needed when bootstrapping from external history.
 

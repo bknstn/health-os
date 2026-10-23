@@ -2,6 +2,7 @@ import http from 'node:http';
 import { URL } from 'node:url';
 
 import { exchangeOuraCode, writeOuraTokenFile } from './oura-api.js';
+import { withTokenFileLock } from './coordination.js';
 
 function escapeHtml(value) {
   return String(value)
@@ -76,13 +77,15 @@ export async function handleOuraCallback({
   }
 
   try {
-    const tokenPayload = await exchangeCode({
-      code,
-      clientId,
-      clientSecret,
-      redirectUri
+    await withTokenFileLock(tokenFile, async (resolvedTokenFile) => {
+      const tokenPayload = await exchangeCode({
+        code,
+        clientId,
+        clientSecret,
+        redirectUri
+      });
+      writeOuraTokenFile(resolvedTokenFile, tokenPayload);
     });
-    writeOuraTokenFile(tokenFile, tokenPayload);
 
     return {
       statusCode: 200,
@@ -92,9 +95,9 @@ export async function handleOuraCallback({
       }
     };
   } catch (errorObject) {
-    const message = errorObject instanceof Error ? errorObject.message : String(errorObject);
-    logger.error(message);
-    throw errorObject;
+    logger.error('Oura callback token exchange failed.');
+    if (errorObject?.code === 'HEALTH_OS_LOCKED') throw errorObject;
+    throw new Error('Oura callback token exchange failed');
   }
 }
 
@@ -154,7 +157,7 @@ export function startOuraCallbackServer({
       }
       server.close();
     } catch (errorObject) {
-      const message = errorObject instanceof Error ? errorObject.message : String(errorObject);
+      const message = 'Oura callback token exchange failed';
       logger.error(message);
       response.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
       response.end(htmlPage('Token Exchange Failed', message));
