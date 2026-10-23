@@ -164,4 +164,4 @@ Tests use local fixtures and mocked provider responses; they do not require Oura
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[MIT License](LICENSE).
