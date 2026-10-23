@@ -23,6 +23,18 @@ Use `.health-os/personal/files/` for processed text:
 
 Runtime uploads belong in `.health-os/personal/raw/`; external tools should prefer `.health-os/personal/files/` when they need processed text. Keep both private and outside the source checkout.
 
+An external agent may maintain a personal card and long-form notes as Markdown in `personal/files/`, preserving source references, dates, and uncertainty. The versioned workspace manifest selects exactly one profile path; the default is `personal/files/profile.md`. The CLI does not discover cards by scanning filenames, and other cards remain untouched. The selected card uses `schema_version: 1` and `updated: null` or a real `YYYY-MM-DD` date in its frontmatter. Original uploads remain unchanged in `personal/raw/`. Derived learned observations belong in `memory/wiki/` under its separate metadata rules. See [framework and workspace boundaries](framework-and-workspace.md).
+
+Inspect or validate the selected Markdown profile with:
+
+```bash
+node src/cli.js workspace-inspect --workspace "$HEALTH_OS_WORKSPACE"
+node src/cli.js profile-validate --workspace "$HEALTH_OS_WORKSPACE"
+node src/cli.js profile-show --workspace "$HEALTH_OS_WORKSPACE" --max-chars 12000
+```
+
+`profile-show` validates the full document and limits returned Markdown to 12,000 characters by default (50,000 maximum). If the selected card is missing or its metadata is invalid, the command exits with an error and does not create or rewrite files.
+
 ## Commands
 
 Show the raw upload folder for the active workspace:

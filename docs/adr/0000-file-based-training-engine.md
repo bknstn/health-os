@@ -6,7 +6,7 @@ Status: Accepted; original runtime integration superseded by [0002](0002-cli-int
 
 ## Context
 
-The initial tracker needed structured workout logging, an alternating training plan, recovery scoring, progression, and readable daily and weekly output. NanoClaw initially supplied messaging, group isolation, and scheduling.
+The initial tracker needed structured workout logging, an alternating training plan, recovery scoring, progression, and readable daily and weekly output. An external agent initially supplied messaging, group isolation, and scheduling.
 
 ## Decision
 
@@ -16,4 +16,4 @@ The initial deployment mounted the code as a toolset for the external runtime. T
 
 ## Consequences
 
-Records and scoring inputs remain inspectable, and the engine can run without a database service or model provider. Workspace data can be separated from source code. File writes need coordination; this storage model does not provide database transactions, concurrent writers, or encryption. The specific NanoClaw deployment was later removed from the supported integration surface by ADR 0002.
+Records and scoring inputs remain inspectable, and the engine can run without a database service or model provider. Workspace data can be separated from source code. File writes need coordination; this storage model does not provide database transactions, concurrent writers, or encryption. The runtime-specific integration was later removed from the supported interface by ADR 0002.

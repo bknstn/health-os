@@ -48,3 +48,24 @@ test('handleOuraCallback escapes reflected OAuth errors', async () => {
   assert.match(handled.body, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(handled.body, /<script>alert\(1\)<\/script>/);
 });
+
+test('callback exchange failures never log or reflect provider details', async (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-os-callback-safe-'));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+  const tokenFile = path.join(tempDir, 'token.json');
+  const secret = 'synthetic-refresh-secret';
+  const messages = [];
+  await assert.rejects(handleOuraCallback({
+    code: 'synthetic-code',
+    tokenFile,
+    exchangeCode: async () => { throw new Error(`provider echoed ${secret}`); },
+    logger: { log() {}, error(message) { messages.push(message); } }
+  }), (error) => {
+    assert.equal(error.message, 'Oura callback token exchange failed');
+    assert.doesNotMatch(error.message, /synthetic-refresh-secret/);
+    return true;
+  });
+  assert.equal(messages.length, 1);
+  assert.doesNotMatch(messages.join('\n'), /synthetic-refresh-secret/);
+  assert.equal(fs.existsSync(tokenFile), false);
+});

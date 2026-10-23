@@ -20,6 +20,6 @@
     "health:weekly": "src/scripts/weekly-summary.sh"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   }
 }

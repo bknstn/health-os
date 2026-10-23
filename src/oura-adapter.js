@@ -32,9 +32,10 @@ function findForDate(records, date) {
 }
 
 function numberOrEmpty(value) {
-  if (value === undefined || value === null || value === '') {
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
     return '';
   }
+  if (typeof value !== 'number' && typeof value !== 'string') return '';
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : '';
 }
@@ -145,6 +146,113 @@ function latestTimestamp(...records) {
   return values.at(-1) || new Date().toISOString();
 }
 
+function incompleteRecovery(message) {
+  return Object.assign(new Error(message), { code: 'HEALTH_OS_RECOVERY_INCOMPLETE' });
+}
+
+function recordHasNumber(record, names) {
+  return Boolean(record && coalesceNumber(...names.map((name) => record[name])) !== '');
+}
+
+function observationMetric({ metric, value, unit, record, date, sourceRef, baseline = null }) {
+  const number = numberOrEmpty(value);
+  const timestamp = record?.timestamp || record?.observed_at || null;
+  const hasExactTimestamp = typeof timestamp === 'string' && timestamp.includes('T');
+  const sampleDate = record ? getDateValue(record) : '';
+  return {
+    metric,
+    status: number === '' ? 'missing' : 'observed',
+    value: number === '' ? null : number,
+    unit,
+    observed_at: number !== '' && hasExactTimestamp ? timestamp : null,
+    observed_date: number !== '' && !hasExactTimestamp && sampleDate ? sampleDate : null,
+    source_ref: sourceRef,
+    baseline
+  };
+}
+
+function scoreObservation({ metric, value, record, date, sourceRef }) {
+  const number = numberOrEmpty(value);
+  const timestamp = record?.timestamp || record?.observed_at || null;
+  const hasExactTimestamp = typeof timestamp === 'string' && timestamp.includes('T');
+  const sampleDate = record ? getDateValue(record) : '';
+  return {
+    metric,
+    status: number === '' ? 'missing' : 'observed',
+    value: number === '' ? null : number,
+    unit: 'score',
+    observed_at: number !== '' && hasExactTimestamp ? timestamp : null,
+    observed_date: number !== '' && !hasExactTimestamp && sampleDate ? sampleDate : null,
+    source_ref: sourceRef
+  };
+}
+
+function baselineForObservation(baselineCoverage, metric, sourceId) {
+  return baselineCoverage?.[metric] || {
+    status: 'unavailable',
+    value: null,
+    observed_days: 0,
+    window_days: 28,
+    scope: 'source',
+    source_id: sourceId
+  };
+}
+
+export function normalizeOuraObservationSet({ date, readinessJson, sleepJson, heartrateJson, baselineCoverage = {} }) {
+  const readinessRecords = asArray(readinessJson);
+  const sleepRecords = asArray(sleepJson);
+  const heartrateRecords = asArray(heartrateJson).filter((record) => getDateValue(record) === date || !getDateValue(record));
+  const readinessRecord = findForDate(readinessRecords, date);
+  const sleepRecord = findForDate(sleepRecords, date);
+
+  const hrvRecord = recordHasNumber(readinessRecord, ['hrv', 'average_hrv']) ? readinessRecord
+    : recordHasNumber(sleepRecord, ['average_hrv', 'hrv']) ? sleepRecord
+      : null;
+  const restingSleepValue = sleepRecord ? coalesceNumber(sleepRecord.resting_hr, sleepRecord.lowest_heart_rate, sleepRecord.lowest_hr) : '';
+  const restingReadinessValue = readinessRecord ? coalesceNumber(readinessRecord.resting_hr, readinessRecord.resting_heart_rate) : '';
+  let restingRecord = restingSleepValue !== '' ? sleepRecord : restingReadinessValue !== '' ? readinessRecord : null;
+  let restingValue = detectRestingHr(readinessRecord || {}, sleepRecord || {}, heartrateRecords);
+  if (!restingRecord && restingValue !== '') {
+    const heartRateRecords = heartrateRecords
+      .map((record) => ({ record, value: coalesceNumber(record.bpm, record.heart_rate, record.hr) }))
+      .filter((item) => item.value !== '')
+      .sort((left, right) => left.value - right.value);
+    restingRecord = heartRateRecords[0]?.record || null;
+  }
+
+  const hrvValue = detectHrv(readinessRecord || {}, sleepRecord || {});
+  const readinessScore = readinessRecord ? detectReadinessScore(readinessRecord) : '';
+  const sleepScore = sleepRecord ? detectSleepScore(sleepRecord) : '';
+  const temperatureRecord = recordHasNumber(readinessRecord, ['temperature_deviation', 'temperature_trend_deviation'])
+    ? readinessRecord
+    : sleepRecord;
+
+  return {
+    schema_version: 1,
+    date,
+    source: { id: 'oura', label: 'Oura Ring', reference: date },
+    freshness: { status: 'unknown', observed_at: null, evaluated_at: null, max_age_seconds: null },
+    physical_metrics: [
+      observationMetric({
+        metric: 'hrv', value: hrvValue, unit: 'ms', record: hrvRecord, date, sourceRef: hrvRecord === readinessRecord ? 'daily_readiness' : 'daily_sleep',
+        baseline: baselineForObservation(baselineCoverage, 'hrv', 'oura')
+      }),
+      observationMetric({
+        metric: 'resting_hr', value: restingValue, unit: 'beats/min', record: restingRecord, date,
+        sourceRef: restingRecord === readinessRecord ? 'daily_readiness' : restingRecord === sleepRecord ? 'daily_sleep' : 'heartrate',
+        baseline: baselineForObservation(baselineCoverage, 'resting_hr', 'oura')
+      }),
+      observationMetric({ metric: 'sleep_efficiency', value: sleepRecord ? detectSleepEfficiency(sleepRecord) : '', unit: '%', record: sleepRecord, date, sourceRef: 'daily_sleep' }),
+      observationMetric({ metric: 'total_sleep_minutes', value: sleepRecord ? detectTotalSleepMinutes(sleepRecord) : '', unit: 'min', record: sleepRecord, date, sourceRef: 'daily_sleep' }),
+      observationMetric({ metric: 'temperature_deviation', value: detectTemperatureDeviation(readinessRecord || {}, sleepRecord || {}), unit: '°C', record: temperatureRecord, date, sourceRef: temperatureRecord === readinessRecord ? 'daily_readiness' : 'daily_sleep' })
+    ],
+    proprietary_scores: [
+      scoreObservation({ metric: 'readiness_score', value: readinessScore, record: readinessRecord, date, sourceRef: 'daily_readiness' }),
+      scoreObservation({ metric: 'sleep_score', value: sleepScore, record: sleepRecord, date, sourceRef: 'daily_sleep' })
+    ]
+  };
+}
+
 export function normalizeOuraPayload({
   date,
   readinessJson,
@@ -160,10 +268,10 @@ export function normalizeOuraPayload({
   const sleepRecord = findForDate(sleepRecords, date);
 
   if (!readinessRecord) {
-    throw new Error(`No readiness record found for ${date}`);
+    throw incompleteRecovery(`No readiness record found for ${date}`);
   }
   if (!sleepRecord) {
-    throw new Error(`No sleep record found for ${date}`);
+    throw incompleteRecovery(`No sleep record found for ${date}`);
   }
 
   const readinessScore = detectReadinessScore(readinessRecord);
@@ -172,16 +280,16 @@ export function normalizeOuraPayload({
   const restingHr = detectRestingHr(readinessRecord, sleepRecord, heartrateRecords);
 
   if (readinessScore === '') {
-    throw new Error(`Unable to detect readiness_score for ${date}`);
+    throw incompleteRecovery(`Unable to detect readiness_score for ${date}`);
   }
   if (sleepScore === '') {
-    throw new Error(`Unable to detect sleep_score for ${date}`);
+    throw incompleteRecovery(`Unable to detect sleep_score for ${date}`);
   }
   if (hrv === '') {
-    throw new Error(`Unable to detect hrv for ${date}`);
+    throw incompleteRecovery(`Unable to detect hrv for ${date}`);
   }
   if (restingHr === '') {
-    throw new Error(`Unable to detect resting_hr for ${date}`);
+    throw incompleteRecovery(`Unable to detect resting_hr for ${date}`);
   }
 
   const normalized = {

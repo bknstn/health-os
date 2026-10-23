@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 
+import { atomicCopyFileSync, atomicWriteFileSync } from './coordination.js';
+
 import { readCsv, writeCsv } from './csv.js';
 import { readJson } from './config.js';
 import { estimateE1rm } from './log-parser.js';
@@ -67,6 +69,7 @@ export function localDateString(date = new Date()) {
 export function initialiseWorkspace(paths, repoRoot) {
   const defaults = [
     ['training-plan.json', paths.trainingPlanFile],
+    ['preparation-policy.json', paths.preparationPolicyFile],
     ['rules.json', paths.rulesFile],
     ['exercise-settings.json', paths.exerciseSettingsFile]
   ];
@@ -74,7 +77,7 @@ export function initialiseWorkspace(paths, repoRoot) {
   for (const [fileName, targetPath] of defaults) {
     const sourcePath = `${repoRoot}/config/${fileName}`;
     if (!fs.existsSync(targetPath)) {
-      fs.copyFileSync(sourcePath, targetPath);
+      atomicCopyFileSync(sourcePath, targetPath, { mode: 0o600 });
     }
   }
 
@@ -94,13 +97,13 @@ export function initialiseWorkspace(paths, repoRoot) {
   }
 
   if (!fs.existsSync(paths.memorySchemaFile)) {
-    fs.copyFileSync(`${repoRoot}/config/memory-schema.md`, paths.memorySchemaFile);
+    atomicCopyFileSync(`${repoRoot}/config/memory-schema.md`, paths.memorySchemaFile, { mode: 0o600 });
   }
   if (!fs.existsSync(paths.memoryIndexFile)) {
-    fs.writeFileSync(paths.memoryIndexFile, '# Health OS Memory Index\n\n_No evidence or wiki pages yet._\n', 'utf8');
+    atomicWriteFileSync(paths.memoryIndexFile, '# Health OS Memory Index\n\n_No evidence or wiki pages yet._\n', { encoding: 'utf8' });
   }
   if (!fs.existsSync(paths.memoryLogFile)) {
-    fs.writeFileSync(paths.memoryLogFile, '# Health OS Memory Log\n', 'utf8');
+    atomicWriteFileSync(paths.memoryLogFile, '# Health OS Memory Log\n', { encoding: 'utf8' });
   }
 }
 
@@ -261,17 +264,7 @@ function computeBaseTarget(planEntry, exerciseLogs, exerciseSettings) {
   return String(lastWeight);
 }
 
-export function buildNextWorkout(paths, dateString = localDateString()) {
-  const trainingPlan = loadTrainingPlan(paths);
-  const rules = loadRules(paths);
-  const exerciseSettings = loadExerciseSettings(paths);
-  const workoutSessions = readCsv(paths.workoutSessionsFile);
-  const exerciseLogs = readCsv(paths.exerciseLogsFile);
-  const dailyState = readCsv(paths.dailyStateFile);
-  const currentState = dailyState.find((row) => row.date === dateString);
-
-  const mode = currentState?.recommended_mode || 'BASE';
-  const dayType = determineNextDayType(workoutSessions);
+export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingPlan, rules, exerciseSettings, exerciseLogs }) {
   const exercises = trainingPlan[dayType].map((entry) => {
     const baseTarget = computeBaseTarget(entry, exerciseLogs, exerciseSettings);
     const numericTarget = parseNumber(baseTarget, NaN);
@@ -302,6 +295,25 @@ export function buildNextWorkout(paths, dateString = localDateString()) {
   };
 }
 
+export function buildNextWorkout(paths, dateString = localDateString()) {
+  const trainingPlan = loadTrainingPlan(paths);
+  const rules = loadRules(paths);
+  const exerciseSettings = loadExerciseSettings(paths);
+  const workoutSessions = readCsv(paths.workoutSessionsFile);
+  const exerciseLogs = readCsv(paths.exerciseLogsFile);
+  const dailyState = readCsv(paths.dailyStateFile);
+  const currentState = dailyState.find((row) => row.date === dateString);
+  return buildWorkoutCard({
+    dateString,
+    dayType: determineNextDayType(workoutSessions),
+    mode: currentState?.recommended_mode || 'BASE',
+    trainingPlan,
+    rules,
+    exerciseSettings,
+    exerciseLogs
+  });
+}
+
 export function setWorkingWeight(paths, exerciseKey, weightKg, incrementKg) {
   const file = readJson(paths.exerciseSettingsFile);
   if (!file.exercises[exerciseKey]) {
@@ -313,7 +325,7 @@ export function setWorkingWeight(paths, exerciseKey, weightKg, incrementKg) {
     file.exercises[exerciseKey].increment_kg = incrementKg;
   }
 
-  fs.writeFileSync(paths.exerciseSettingsFile, `${JSON.stringify(file, null, 2)}\n`, 'utf8');
+  atomicWriteFileSync(paths.exerciseSettingsFile, `${JSON.stringify(file, null, 2)}\n`, { encoding: 'utf8' });
 }
 
 function completedAsPlanned(planEntry, sets, actualMode) {
@@ -487,7 +499,7 @@ export function renderToday(paths, dateString = localDateString()) {
   }
 
   const output = `${lines.join('\n')}\n`;
-  fs.writeFileSync(paths.todayArtifactFile, output, 'utf8');
+  atomicWriteFileSync(paths.todayArtifactFile, output, { encoding: 'utf8' });
   return output;
 }
 
@@ -564,6 +576,6 @@ export function renderWeeklySummary(paths, endDate = localDateString()) {
   }
 
   const output = `${lines.join('\n')}\n`;
-  fs.writeFileSync(paths.weeklyArtifactFile, output, 'utf8');
+  atomicWriteFileSync(paths.weeklyArtifactFile, output, { encoding: 'utf8' });
   return output;
 }
