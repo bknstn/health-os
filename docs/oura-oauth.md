@@ -38,7 +38,7 @@ Keep tokens outside the repository checkout and health workspace. The recommende
 1. Register an application in [Oura's application settings](https://cloud.ouraring.com/oauth/applications).
 2. Register `http://localhost:8787/callback` as a redirect URI for local use.
 3. Supply `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` through your process environment or secret manager. The CLI does not automatically load `.env` files. Avoid putting literal secrets in shell commands or shared logs.
-4. Initialize a private workspace as described in the [README](../README.md#quick-start).
+4. Initialize a private workspace as described in [getting started](getting-started.md#initialize-a-workspace).
 
 Choose the token location and generate a state value for this authorization attempt:
 
