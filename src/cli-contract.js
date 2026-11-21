@@ -20,6 +20,7 @@ export const CLI_COMMANDS = [
   'oura-refresh-token', 'oura-fetch-day', 'oura-sync-from-token', 'oura-listen-callback',
   'context-add', 'context-query', 'context-correct', 'context-delete', 'timeline', 'context-revalidate-memory',
   'today', 'why', 'weekly-summary', 'memory-update', 'memory-context', 'memory-lint', 'prepare-training',
+  'training-plan-show', 'replace-plan-exercise',
   'version', 'capabilities'
 ];
 
@@ -54,7 +55,7 @@ export function capabilitiesInfo() {
       json_envelope_commands: [...CLI_COMMANDS],
       json_stdin_commands: [
         'log-workout', 'ingest-daily-state', 'validate-daily-state',
-        'ingest-wearable-observations', 'validate-wearable-observations', 'context-add', 'context-correct'
+        'ingest-wearable-observations', 'validate-wearable-observations', 'context-add', 'context-correct', 'replace-plan-exercise'
       ],
       event_idempotency_commands: ['context-add', 'context-correct', 'context-delete'],
       event_store_idempotency_commands: ['context-add', 'context-correct', 'context-delete'],
@@ -63,16 +64,20 @@ export function capabilitiesInfo() {
       context_query: 'newest known times first; an exact --event-id lookup includes inactive rows and tombstones',
       timeline: 'oldest matching events first; inclusive UTC date filters; unknown-time events are excluded when a date filter is present',
       training_preparation: 'prepare-training accepts --as-of YYYY-MM-DD or RFC3339, optional --session PLAN_KEY and comma-separated approved --substitute FROM=TO pairs; it reads a current workspace snapshot without seeding or domain-data writes, though SQLite may create auxiliary WAL/SHM files',
+      training_plan: {
+        read: 'training-plan-show --day PLAN_KEY returns the exercises and the SHA-256 revision of the complete plan file',
+        replacement: 'replace-plan-exercise --day PLAN_KEY --exercise SOURCE_KEY --expected-revision REVISION --input-json replaces one entry in place; --duration-limit-minutes sets the selected day limit'
+      },
       idempotency_commands: [
         'log-workout', 'set-working-weight', 'next', 'ingest-daily-state', 'import-personal-file',
         'sync-daily-source', 'ingest-wearable-observations', 'oura-sync-from-token', 'today', 'why', 'weekly-summary',
-        'memory-update', 'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete'
+        'memory-update', 'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'replace-plan-exercise'
       ],
       workspace_lock_commands: [
         'init-workspace', 'workspace-migrate', 'log-workout', 'set-working-weight',
         'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file', 'sync-daily-source',
         'oura-sync-from-token', 'today', 'why', 'weekly-summary', 'memory-update',
-        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory'
+        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
       ],
       token_lock_commands: ['oura-fetch-day', 'oura-exchange-code', 'oura-refresh-token', 'oura-listen-callback', 'sync-daily-source', 'oura-sync-from-token'],
       external_atomic_write_commands: ['oura-fetch-day', 'sync-daily-source', 'oura-sync-from-token'],
@@ -80,7 +85,7 @@ export function capabilitiesInfo() {
         'init-workspace', 'workspace-migrate', 'log-workout', 'set-working-weight',
         'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file', 'sync-daily-source',
         'oura-sync-from-token', 'today', 'why', 'weekly-summary', 'memory-update',
-        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory'
+        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
       ],
       conditional_writes: {
         'workspace-migrate': 'writes unless --dry-run true',
@@ -95,7 +100,7 @@ export function capabilitiesInfo() {
       },
       read_only_event_commands: ['context-query', 'timeline'],
       read_only_preparation_commands: ['prepare-training'],
-      workspace_read_lock_commands: ['prepare-training'],
+      workspace_read_lock_commands: ['prepare-training', 'training-plan-show'],
       read_only_observation_commands: ['validate-wearable-observations', 'wearable-observations'],
       wearable_observation_commands: {
         validation: 'validate-wearable-observations accepts a HealthObservationSet v1 object and does not initialize a workspace',

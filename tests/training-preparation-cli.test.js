@@ -181,6 +181,83 @@ function writeWorkoutHistory(paths, { futureWeight = '200', pastWeight = '60' } 
   writeCsv(paths.exerciseLogsFile, CSV_HEADERS.exerciseLogs, exerciseLogs);
 }
 
+test('a guarded plan replacement preserves the slot and prepares the explicit bodyweight prescription', (t) => {
+  const root = scratch(t);
+  const { workspace, paths } = initWorkspace(t, root);
+  writeWorkoutHistory(paths);
+  const originalLogs = fs.readFileSync(paths.exerciseLogsFile);
+  const originalSessions = fs.readFileSync(paths.workoutSessionsFile);
+  const show = (day) => envelope(jsonCommand(root, workspace, 'training-plan-show', '--day', day)).data;
+  const beforeA = show('A');
+  const beforeB = show('B');
+  assert.match(beforeB.revision, /^[a-f0-9]{64}$/);
+  assert.equal(beforeA.revision, beforeB.revision);
+  assert.equal(beforeB.duration_limit_minutes, null);
+  assert.equal(prepare(root, workspace, AS_OF, ['--session', 'A']).workout.exercises[0].target_weight, '65');
+
+  const replacement = {
+    exercise_key: 'squat', exercise_name: 'Bodyweight Squat', movement_pattern: 'squat',
+    sets: 3, reps_min: 8, reps_max: 8, progression_type: 'quality_first',
+    load_tier: 'bodyweight', load_mode: 'bodyweight', rest_seconds: 120
+  };
+  const replace = (entry, key, revision = beforeB.revision) => {
+    const result = runCli([
+      'replace-plan-exercise', '--json', '--workspace', workspace, '--day', 'B',
+      '--exercise', 'standing_press', '--expected-revision', revision, '--duration-limit-minutes', '80',
+      '--input-json', '--idempotency-key', key
+    ], { root, input: JSON.stringify(entry) });
+    return { exit: result.status, ...envelope(result) };
+  };
+
+  const duplicate = replace({ ...replacement, exercise_key: 'deadlift' }, 'synthetic:duplicate');
+  assert.equal(duplicate.exit, 1);
+  assert.equal(duplicate.error.code, 'HEALTH_OS_TRAINING_PLAN_DUPLICATE_EXERCISE');
+  assert.deepEqual(show('B'), beforeB);
+
+  const saved = replace(replacement, 'synthetic:replace');
+  assert.equal(saved.exit, 0);
+  assert.equal(saved.data.status, 'saved');
+  assert.equal(saved.idempotency.status, 'completed');
+  const afterB = show('B');
+  assert.notEqual(afterB.revision, beforeB.revision);
+  assert.equal(afterB.revision, saved.data.revision);
+  assert.equal(afterB.duration_limit_minutes, 80);
+  const position = beforeB.exercises.findIndex((entry) => entry.exercise_key === 'standing_press');
+  assert.equal(saved.data.position, position);
+  const expected = [...beforeB.exercises];
+  expected[position] = { increment_kg: 0, ...replacement };
+  assert.deepEqual(afterB.exercises, expected);
+  assert.deepEqual(show('A').exercises, beforeA.exercises);
+
+  const replay = replace(replacement, 'synthetic:replace');
+  assert.equal(replay.idempotency.status, 'replayed');
+  assert.deepEqual(replay.data, saved.data);
+  const stale = replace(replacement, 'synthetic:stale');
+  assert.equal(stale.exit, 1);
+  assert.equal(stale.error.code, 'HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT');
+  assert.equal(replace(replacement, 'synthetic:stale').idempotency.status, 'replayed');
+
+  fs.appendFileSync(paths.trainingPlanFile, '\n');
+  assert.notEqual(show('B').revision, afterB.revision);
+  assert.equal(replace(replacement, 'synthetic:manual', afterB.revision).error.code,
+    'HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT');
+
+  const { workout } = prepare(root, workspace, AS_OF, ['--session', 'B']);
+  assert.equal(workout.duration_limit_minutes, 80);
+  assert.equal(workout.exercises.length, beforeB.exercises.length);
+  const exercise = workout.exercises[position];
+  assert.equal(exercise.exercise_key, replacement.exercise_key);
+  assert.equal(exercise.target_sets, 3);
+  assert.equal(exercise.target_reps, '8');
+  assert.equal(exercise.rest_seconds, 120);
+  assert.equal(exercise.target_weight, 'bodyweight');
+  const human = runCli(['prepare-training', '--as-of', AS_OF, '--workspace', workspace, '--session', 'B'], { root });
+  assert.match(human.stdout, /^duration_limit_minutes=80$/m);
+  assert.match(human.stdout, /^squat=3x8@bodyweight rest_seconds=120$/m);
+  assert.deepEqual(fs.readFileSync(paths.exerciseLogsFile), originalLogs);
+  assert.deepEqual(fs.readFileSync(paths.workoutSessionsFile), originalSessions);
+});
+
 function wearableSet({ date, observedAt, readiness = 80, sleep = 78, hrv = 50, restingHr = 55, scoreAt = observedAt }) {
   const metric = (name, value, unit, timestamp) => ({
     metric: name, status: 'observed', value, unit,

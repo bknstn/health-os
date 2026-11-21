@@ -70,6 +70,7 @@ import {
   renderWhy
 } from './engine.js';
 import { validatePreparationAsOf } from './preparation-policy.js';
+import { assertTrainingPlanFile, replacePlanExercise, showTrainingPlan } from './training-plan.js';
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -131,6 +132,8 @@ function emitResult(data, humanOutput, options = {}) {
       idempotency: status ? { status } : undefined,
       maxTextChars: options.maxTextChars
     }))}\n`);
+  } else if (!ok && data === null) {
+    process.stderr.write(humanOutput);
   } else {
     process.stdout.write(humanOutput);
   }
@@ -155,7 +158,7 @@ const WORKSPACE_LOCK_COMMANDS = new Set([
   'log-workout', 'set-working-weight', 'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file',
   'sync-daily-source', 'oura-sync-from-token', 'today', 'why', 'weekly-summary',
   'memory-update', 'memory-context', 'memory-lint',
-  'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory'
+  'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
 ]);
 
 const EVENT_WRITE_COMMANDS = new Set(['context-add', 'context-correct', 'context-delete']);
@@ -171,7 +174,7 @@ function inputCommand(command) {
   return [
     'log-workout', 'ingest-daily-state', 'validate-daily-state',
     'ingest-wearable-observations', 'validate-wearable-observations',
-    'context-add', 'context-correct'
+    'context-add', 'context-correct', 'replace-plan-exercise'
   ].includes(command);
 }
 
@@ -187,7 +190,7 @@ function idempotencyRequest(command, options, inputBytes, importBytes, baselineB
   return {
     command,
     options: normalizedOptions,
-    effective_date: effectiveDate,
+    ...(command === 'replace-plan-exercise' ? {} : { effective_date: effectiveDate }),
     ...(inputBytes ? { input_sha256: digestBytes(inputBytes) } : {}),
     ...(importBytes ? { file_sha256: digestBytes(importBytes) } : {}),
     ...(baselineBytes ? { baselines_sha256: digestBytes(baselineBytes) } : {}),
@@ -239,11 +242,13 @@ function printWorkout(nextWorkout) {
   const lines = [];
   lines.push(`mode=${nextWorkout.mode}`);
   lines.push(`day=${nextWorkout.dayType}`);
+  if (nextWorkout.duration_limit_minutes !== undefined) {
+    lines.push(`duration_limit_minutes=${nextWorkout.duration_limit_minutes}`);
+  }
   for (const exercise of nextWorkout.exercises) {
     const weight = exercise.target_weight || (exercise.load_tier === 'bodyweight' ? 'bodyweight' : 'unset');
-    lines.push(
-      `${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${weight}`
-    );
+    const rest = exercise.rest_seconds === undefined ? '' : ` rest_seconds=${exercise.rest_seconds}`;
+    lines.push(`${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${weight}${rest}`);
   }
   return `${lines.join('\n')}\n`;
 }
@@ -351,6 +356,9 @@ async function main() {
   let inputBytes;
   let preparedInput;
   if (inputCommand(command)) {
+    if (command === 'replace-plan-exercise' && !options['input-json']) {
+      throw new Error('replace-plan-exercise requires --input-json with a bare replacement exercise object on stdin');
+    }
     if (EVENT_WRITE_COMMANDS.has(command) && !options['input-json']) {
       throw new Error(`${command} requires --input-json with a bare HealthEvent object on stdin`);
     }
@@ -377,13 +385,16 @@ async function main() {
         : parseWorkoutLog(inputText);
     } else if (EVENT_WRITE_COMMANDS.has(command)) {
       preparedInput = JSON.parse(inputText);
+    } else if (command === 'replace-plan-exercise') {
+      if (inputBytes.byteLength > 16 * 1024) throw new Error('Replacement exercise input exceeds 16384 bytes');
+      preparedInput = JSON.parse(inputText);
     } else if ([...OBSERVATION_WRITE_COMMANDS, 'validate-wearable-observations'].includes(command)) {
       preparedInput = validateWearableObservationSet(JSON.parse(inputText));
     } else {
       preparedInput = validateRecoveryPayload(JSON.parse(inputText));
     }
   } else if (options['input-json'] !== undefined || options.input !== undefined) {
-    throw new Error('--input and --input-json are only valid for workout/recovery/observation payloads, context-add, and context-correct');
+    throw new Error('--input and --input-json are only valid for workout/recovery/observation payloads, context-add, context-correct, and replace-plan-exercise');
   }
 
   let importBytes;
@@ -549,12 +560,14 @@ async function main() {
 
   let releaseWorkspace;
   let releaseOutput;
+  const planCommand = command === 'training-plan-show' || command === 'replace-plan-exercise';
+  if (planCommand) assertTrainingPlanFile(paths);
   try {
-    if (WORKSPACE_LOCK_COMMANDS.has(command)) {
+    if (WORKSPACE_LOCK_COMMANDS.has(command) || command === 'training-plan-show') {
       releaseWorkspace = await acquireWorkspaceLock(paths);
       if (EVENT_PROTOCOL_COMMANDS.has(command)) {
         eventProfileId(paths, options.profile, { required: true });
-      } else {
+      } else if (!planCommand) {
         ensureWorkspace(paths);
       }
     }
@@ -613,6 +626,33 @@ async function main() {
     }
 
     switch (command) {
+      case 'training-plan-show': {
+        const result = showTrainingPlan(paths, options.day);
+        if (activeCliState.json && makeSuccessEnvelope(command, result).truncation) {
+          throw Object.assign(new Error('Plan day exceeds the structured output limit'), { code: 'HEALTH_OS_TRAINING_PLAN_OUTPUT_LIMIT' });
+        }
+        emitResult(result, jsonOutput(result));
+        return;
+      }
+      case 'replace-plan-exercise': {
+        let result;
+        try {
+          result = replacePlanExercise(paths, {
+            day: options.day,
+            exercise: options.exercise,
+            replacement: preparedInput,
+            expectedRevision: options['expected-revision'],
+            durationLimit: options['duration-limit-minutes'] === undefined ? undefined : Number(options['duration-limit-minutes'])
+          });
+        } catch (error) {
+          if (activeCliState.idempotency?.status !== 'new' || !error.code?.startsWith('HEALTH_OS_TRAINING_PLAN_')) throw error;
+          const message = safeErrorMessage(error, options);
+          emitResult(null, `${message}\n`, { exitCode: 1, error: { code: error.code, message } });
+          return;
+        }
+        emitResult(result, jsonOutput(result));
+        return;
+      }
       case 'context-add': {
         const profileId = eventProfileId(paths, options.profile, { required: true });
         const event = createHealthEvent(preparedInput, { profileId });

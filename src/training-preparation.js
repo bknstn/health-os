@@ -7,6 +7,7 @@ import { assertEventMemoryReviewMatchesStore, queryEvents } from './event-store.
 import { assertMemoryEventProvenanceCurrent } from './event-memory-review.js';
 import { parseFrontmatter } from './memory.js';
 import { loadPreparationPolicy } from './preparation-policy.js';
+import { readTrainingPlan } from './training-plan.js';
 import { readSelectedProfile } from './workspace-contract.js';
 import { readWearableObservationStore } from './wearable-observation-store.js';
 
@@ -106,39 +107,6 @@ function addUtcDays(date, days) {
   const value = new Date(`${date}T00:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
-}
-
-function validateTrainingPlan(plan) {
-  if (!plan || typeof plan !== 'object' || Array.isArray(plan) || plan.version !== 1 ||
-      !plan.days || typeof plan.days !== 'object' || Array.isArray(plan.days)) {
-    throw preparationError('training-plan.json must contain version 1 and a days object');
-  }
-  const dayKeys = Object.keys(plan.days);
-  if (dayKeys.length < 1 || dayKeys.length > 20 || dayKeys.some((key) => !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(key))) {
-    throw preparationError('training-plan.json must contain 1-20 bounded plan day keys');
-  }
-  const catalog = new Map();
-  for (const dayKey of dayKeys) {
-    const entries = plan.days[dayKey];
-    if (!Array.isArray(entries) || entries.length > 50) throw preparationError(`training-plan day ${dayKey} must be an array of at most 50 exercises`);
-    const seen = new Set();
-    for (const entry of entries) {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
-          typeof entry.exercise_key !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(entry.exercise_key) ||
-          typeof entry.exercise_name !== 'string' || !entry.exercise_name.trim() ||
-          !Number.isSafeInteger(entry.sets) || entry.sets < 1 || entry.sets > 20 ||
-          !Number.isSafeInteger(entry.reps_min) || entry.reps_min < 1 || entry.reps_min > 100 ||
-          !Number.isSafeInteger(entry.reps_max) || entry.reps_max < entry.reps_min || entry.reps_max > 100 ||
-          typeof entry.progression_type !== 'string' || !['upper_lower_load', 'reps_first', 'quality_first'].includes(entry.progression_type) ||
-          typeof entry.load_tier !== 'string') {
-        throw preparationError(`training-plan day ${dayKey} contains an invalid exercise entry`);
-      }
-      if (seen.has(entry.exercise_key)) throw preparationError(`training-plan day ${dayKey} contains duplicate exercise ${entry.exercise_key}`);
-      seen.add(entry.exercise_key);
-      if (!catalog.has(entry.exercise_key)) catalog.set(entry.exercise_key, entry);
-    }
-  }
-  return { days: plan.days, dayKeys, catalog };
 }
 
 function validateRules(rules) {
@@ -840,6 +808,8 @@ function applySubjectiveAdjustments(workout, subjective) {
     reps_max: exercise.reps_max,
     progression_type: exercise.progression_type,
     load_tier: exercise.load_tier,
+    ...(exercise.load_mode !== undefined ? { load_mode: exercise.load_mode } : {}),
+    ...(exercise.rest_seconds !== undefined ? { rest_seconds: exercise.rest_seconds } : {}),
     increment_kg: exercise.increment_kg,
     optional: exercise.optional === true,
     notes: typeof exercise.notes === 'string' ? exercise.notes.slice(0, 500) : '',
@@ -852,6 +822,7 @@ function applySubjectiveAdjustments(workout, subjective) {
     date: workout.date,
     mode: workout.mode,
     dayType: workout.dayType,
+    ...(workout.duration_limit_minutes !== undefined ? { duration_limit_minutes: workout.duration_limit_minutes } : {}),
     exercises: safeExercises.map((exercise) => ({
       ...exercise,
       scheduled_target_sets: exercise.target_sets,
@@ -870,7 +841,14 @@ function makeHumanOutput(data) {
     `recovery_reasons=${data.recovery.decision.reasons.join(', ') || 'none'}`,
     `workout_candidate=${data.workout.dayType} mode=${data.workout.mode} scheduled_only=${data.workout.scheduled_only}`
   ];
-  for (const exercise of data.workout.exercises) lines.push(`${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${exercise.target_weight || (exercise.load_tier === 'bodyweight' ? 'bodyweight' : 'unset')}`);
+  if (data.workout.duration_limit_minutes !== undefined) {
+    lines.push(`duration_limit_minutes=${data.workout.duration_limit_minutes}`);
+  }
+  for (const exercise of data.workout.exercises) {
+    const weight = exercise.target_weight || (exercise.load_tier === 'bodyweight' ? 'bodyweight' : 'unset');
+    const rest = exercise.rest_seconds === undefined ? '' : ` rest_seconds=${exercise.rest_seconds}`;
+    lines.push(`${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${weight}${rest}`);
+  }
   for (const item of data.subjective.applied) lines.push(`subjective_adjustment=${item.reason} (${item.event_id})`);
   if (data.gaps.length) lines.push(`gaps=${data.gaps.length}`);
   for (const gap of data.gaps.slice(0, 5)) lines.push(`gap=${gap.code}: ${String(gap.detail).slice(0, 240)}`);
@@ -894,7 +872,7 @@ export function prepareTraining(paths, { asOf, explicitSession, substitute } = {
   }
   const profileId = profile?.manifest.profile_path || JSON.parse(fs.readFileSync(path.join(paths.trackerRoot, 'manifest.json'), 'utf8')).profile_path;
   const policy = loadPreparationPolicy(paths);
-  const plan = validateTrainingPlan(readJsonFile(paths.trainingPlanFile, 'training plan'));
+  const { plan } = readTrainingPlan(paths);
   for (const [weekday, dayType] of Object.entries(policy.session_selection.weekday_day_types)) {
     if (!plan.dayKeys.includes(dayType)) throw preparationError(`preparation policy weekday ${weekday} selects unknown plan day ${dayType}`);
   }
@@ -938,6 +916,7 @@ export function prepareTraining(paths, { asOf, explicitSession, substitute } = {
     dayType: selection.selected_day_type,
     mode,
     trainingPlan: effectivePlan,
+    durationLimit: plan.dayLimits[selection.selected_day_type],
     rules,
     exerciseSettings,
     exerciseLogs

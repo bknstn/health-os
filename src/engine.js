@@ -228,6 +228,7 @@ function findExerciseHistory(exerciseLogs, exerciseKey) {
 }
 
 function computeBaseTarget(planEntry, exerciseLogs, exerciseSettings) {
+  if (planEntry.load_mode === 'bodyweight') return 'bodyweight';
   const history = findExerciseHistory(exerciseLogs, planEntry.exercise_key);
   const last = history[0];
   const previous = history[1];
@@ -264,7 +265,7 @@ function computeBaseTarget(planEntry, exerciseLogs, exerciseSettings) {
   return String(lastWeight);
 }
 
-export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingPlan, rules, exerciseSettings, exerciseLogs }) {
+export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingPlan, rules, exerciseSettings, exerciseLogs, durationLimit }) {
   const exercises = trainingPlan[dayType].map((entry) => {
     const baseTarget = computeBaseTarget(entry, exerciseLogs, exerciseSettings);
     const numericTarget = parseNumber(baseTarget, NaN);
@@ -291,23 +292,26 @@ export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingP
     date: dateString,
     mode,
     dayType,
+    ...(durationLimit !== undefined ? { duration_limit_minutes: durationLimit } : {}),
     exercises
   };
 }
 
 export function buildNextWorkout(paths, dateString = localDateString()) {
-  const trainingPlan = loadTrainingPlan(paths);
+  const plan = readJson(paths.trainingPlanFile);
   const rules = loadRules(paths);
   const exerciseSettings = loadExerciseSettings(paths);
   const workoutSessions = readCsv(paths.workoutSessionsFile);
   const exerciseLogs = readCsv(paths.exerciseLogsFile);
   const dailyState = readCsv(paths.dailyStateFile);
   const currentState = dailyState.find((row) => row.date === dateString);
+  const dayType = determineNextDayType(workoutSessions);
   return buildWorkoutCard({
     dateString,
-    dayType: determineNextDayType(workoutSessions),
+    dayType,
     mode: currentState?.recommended_mode || 'BASE',
-    trainingPlan,
+    trainingPlan: plan.days,
+    durationLimit: plan.day_limits_minutes?.[dayType],
     rules,
     exerciseSettings,
     exerciseLogs
@@ -489,13 +493,19 @@ export function renderToday(paths, dateString = localDateString()) {
   lines.push(`• next workout: Day ${nextWorkout.dayType}`);
   lines.push('');
   lines.push('*Workout Card*');
+  if (nextWorkout.duration_limit_minutes !== undefined) {
+    lines.push(`• time limit: ${nextWorkout.duration_limit_minutes} min`);
+  }
   for (const exercise of nextWorkout.exercises) {
-    const weightText = exercise.target_weight
+    const weightText = exercise.target_weight === 'bodyweight'
+      ? 'bodyweight'
+      : exercise.target_weight
       ? `${exercise.target_weight} kg`
       : exercise.load_tier === 'bodyweight'
         ? 'bodyweight'
         : 'set manually';
-    lines.push(`• ${exercise.exercise_name}: ${exercise.target_sets}x${exercise.target_reps} @ ${weightText}`);
+    const rest = exercise.rest_seconds === undefined ? '' : `, rest ${exercise.rest_seconds} s`;
+    lines.push(`• ${exercise.exercise_name}: ${exercise.target_sets}x${exercise.target_reps} @ ${weightText}${rest}`);
   }
 
   const output = `${lines.join('\n')}\n`;

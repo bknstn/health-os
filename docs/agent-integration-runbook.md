@@ -221,6 +221,39 @@ Read-only, validation, and external fetch commands:
 
 Version/capability, inspect/profile, validation, `prepare-training`, connector-listing, directory, normalization, and authorization-URL reads do not initialize a workspace. The legacy read/result commands listed above may seed missing defaults; workspace-writing operations also initialize the defaults they need. `workspace-migrate` writes unless dry-run is enabled. `oura-fetch-day` calls the Oura API; it writes raw JSON only when `--output-dir` is provided.
 
+## Editing a training plan
+
+Read the selected day and copy `data.revision` from the JSON response. The revision hashes the entire current plan file, so an edit to any day makes it stale.
+
+```sh
+node src/cli.js training-plan-show --workspace "$WORKSPACE" --day B --json
+```
+
+Replace one exercise by its current key. The new entry stays at the same zero-based position. Its key must be unique on that day. The optional duration limit applies to the selected day and is preserved when the option is omitted.
+
+```sh
+node src/cli.js replace-plan-exercise --workspace "$WORKSPACE" --day B \
+  --exercise standing_press --expected-revision "$PLAN_REVISION" \
+  --duration-limit-minutes 60 --idempotency-key plan:example:1 --input-json --json <<'JSON'
+{
+  "exercise_key": "pushup",
+  "exercise_name": "Push-up",
+  "movement_pattern": "horizontal_push",
+  "sets": 3,
+  "reps_min": 10,
+  "reps_max": 10,
+  "progression_type": "reps_first",
+  "load_tier": "bodyweight",
+  "load_mode": "bodyweight",
+  "rest_seconds": 90
+}
+JSON
+```
+
+The replacement requires `exercise_key`, `exercise_name`, `sets`, `reps_min`, `reps_max`, `progression_type`, and `load_tier`. The optional `increment_kg` defaults to zero. Set `load_mode` to `bodyweight` to prescribe bodyweight even when the exercise has weighted history or a configured working weight. `prepare-training` includes the prescribed `rest_seconds` on the exercise and `duration_limit_minutes` on the workout when configured.
+
+A successful write returns `data.status: "saved"` and the resulting revision. An exact retry with the optional idempotency key returns the stored result. On `HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT`, read the plan again and use a new key for any revised request. Both commands require an existing plan. The write checks the revision and atomically replaces `.health-os/config/training-plan.json` under the workspace lock.
+
 ## Daily Oura Sync
 
 Use this when the agent has an existing Oura token file.
