@@ -14,6 +14,9 @@ The canonical entrypoint is `node src/cli.js <command> --workspace PATH`. Existi
 | `context-revalidate-memory` | Revalidate derived-memory provenance after event changes |
 | `timeline` | Query events alongside authoritative workout and recovery history |
 | `prepare-training` | Return a bounded as-of training context without changing workspace domain data |
+| `training-plan-show` | List plan day keys and the revision, or inspect a specific day with `--day PLAN_KEY` |
+| `replace-plan-exercise` | Replace one exercise in place with an expected plan revision and a JSON exercise payload |
+| `set-plan-block` | Add or update a timed block for one day or all plan days with an expected revision and a JSON block payload |
 | `version` / `capabilities` | Report CLI and machine-contract versions and supported command subsets |
 | `set-working-weight` | Set an exercise's initial working weight |
 | `log-workout` | Store a workout from stdin or `--input FILE` |
@@ -40,7 +43,7 @@ The canonical entrypoint is `node src/cli.js <command> --workspace PATH`. Existi
 
 Human-readable output remains the default. Add `--json` to any command for one compact, versioned envelope on stdout; command failures use the same envelope and still exit nonzero. Human-mode failures go to stderr. `version` and `capabilities --json` expose the CLI and envelope schema versions, command-specific stdin, idempotency, token, and write-lock capabilities. The JSON envelope and returned context are bounded; inspect its `truncation` field when present.
 
-Use `--input-json` with `log-workout`, `ingest-daily-state`, `validate-daily-state`, `ingest-wearable-observations`, `validate-wearable-observations`, `context-add`, or `context-correct` to read a bare validated JSON payload object from stdin. Command options remain command-line flags; do not wrap payloads in a command/options object. Existing `--input FILE|-` behavior and shell wrappers remain available. The `--idempotency-key KEY` option is supported only by the workspace commands listed by `capabilities`; operation-journal replays return their original result, a key reused for different input fails with a conflict, and an interrupted pending request fails closed for inspection. Event mutations use a separate SQLite journal: an exact replay returns the current event state, replacement, or metadata-only tombstone. Event writes require an idempotency key, and correction, deletion, and supersession also require the expected revision.
+Use `--input-json` with `log-workout`, `ingest-daily-state`, `validate-daily-state`, `ingest-wearable-observations`, `validate-wearable-observations`, `context-add`, `context-correct`, `replace-plan-exercise`, or `set-plan-block` to read a bare validated JSON payload object from stdin. Pass command options as command-line flags. Existing `--input FILE|-` behavior and shell wrappers remain available. The `--idempotency-key KEY` option is supported only by the workspace commands listed by `capabilities`. Operation-journal replays return their original result, a key reused for different input fails with a conflict, and an interrupted pending request fails closed for inspection. For event mutations, a separate SQLite journal handles exact replays and returns the current event state, replacement, or metadata-only tombstone. Event writes require an idempotency key, and correction, deletion, and supersession also require the expected revision.
 
 ## Writes and coordination
 
@@ -50,4 +53,4 @@ Legacy read/result commands (`next`, `why`, `memory-context`, and `memory-lint`)
 
 `prepare-training` does not write domain data or seed missing files; its workspace lock and SQLite reads may create auxiliary WAL/SHM files. `context-query` and `timeline` on a missing event store do not scaffold a workspace. `workspace-migrate` writes unless `--dry-run` is enabled.
 
-Payload examples, event lifecycle rules, preparation semantics, output bounds, and subprocess integration are in the [agent integration runbook](agent-integration-runbook.md). See [Oura setup](oura-oauth.md) for credential commands and [workspace boundaries](framework-and-workspace.md) for storage and migration details.
+Payload examples, training plan edits, event lifecycle rules, preparation semantics, output bounds, and subprocess integration are in the [agent integration runbook](agent-integration-runbook.md). See [Oura setup](oura-oauth.md) for credential commands and [workspace boundaries](framework-and-workspace.md) for storage and migration details.

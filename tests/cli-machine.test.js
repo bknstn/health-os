@@ -76,12 +76,16 @@ test('version, capabilities, and JSON reads do not initialize a workspace', (t) 
   const version = readEnvelope(run(['version', '--json', '--workspace', workspace]));
   assert.equal(version.schema_version, CLI_JSON_SCHEMA_VERSION);
   assert.equal(version.command, 'version');
-  assert.equal(version.data.version, '0.1.0');
+  assert.equal(version.data.version, '0.2.0');
   const capabilities = readEnvelope(run(['capabilities', '--json']));
   assert.ok(capabilities.data.contracts.idempotency_commands.includes('log-workout'));
   assert.ok(capabilities.data.contracts.json_stdin_commands.includes('ingest-daily-state'));
   assert.ok(capabilities.data.contracts.json_stdin_commands.includes('validate-wearable-observations'));
   assert.ok(capabilities.data.contracts.workspace_lock_commands.includes('ingest-wearable-observations'));
+  assert.ok(capabilities.data.commands.includes('set-plan-block'));
+  for (const contract of ['json_stdin_commands', 'idempotency_commands', 'workspace_lock_commands', 'workspace_write_commands']) {
+    assert.ok(capabilities.data.contracts[contract].includes('set-plan-block'), contract);
+  }
   assert.deepEqual(capabilities.data.health_event_schema_versions, [1]);
   assert.ok(capabilities.data.contracts.event_store_idempotency_commands.includes('context-add'));
   const invalid = run(['profile-validate', '--json', '--workspace', workspace]);

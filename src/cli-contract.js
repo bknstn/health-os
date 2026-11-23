@@ -11,6 +11,8 @@ const MAX_JSON_ARRAY_ITEMS = 100;
 const MAX_JSON_OBJECT_KEYS = 100;
 const MAX_JSON_NODES = 5_000;
 
+export const TRAINING_PLAN_WRITE_COMMANDS = ['replace-plan-exercise', 'set-plan-block'];
+
 export const CLI_COMMANDS = [
   'init-workspace', 'workspace-inspect', 'workspace-migrate', 'profile-show', 'profile-validate',
   'log-workout', 'set-working-weight', 'next', 'ingest-daily-state', 'validate-daily-state',
@@ -20,7 +22,7 @@ export const CLI_COMMANDS = [
   'oura-refresh-token', 'oura-fetch-day', 'oura-sync-from-token', 'oura-listen-callback',
   'context-add', 'context-query', 'context-correct', 'context-delete', 'timeline', 'context-revalidate-memory',
   'today', 'why', 'weekly-summary', 'memory-update', 'memory-context', 'memory-lint', 'prepare-training',
-  'training-plan-show', 'replace-plan-exercise',
+  'training-plan-show', ...TRAINING_PLAN_WRITE_COMMANDS,
   'version', 'capabilities'
 ];
 
@@ -55,7 +57,7 @@ export function capabilitiesInfo() {
       json_envelope_commands: [...CLI_COMMANDS],
       json_stdin_commands: [
         'log-workout', 'ingest-daily-state', 'validate-daily-state',
-        'ingest-wearable-observations', 'validate-wearable-observations', 'context-add', 'context-correct', 'replace-plan-exercise'
+        'ingest-wearable-observations', 'validate-wearable-observations', 'context-add', 'context-correct', ...TRAINING_PLAN_WRITE_COMMANDS
       ],
       event_idempotency_commands: ['context-add', 'context-correct', 'context-delete'],
       event_store_idempotency_commands: ['context-add', 'context-correct', 'context-delete'],
@@ -65,19 +67,20 @@ export function capabilitiesInfo() {
       timeline: 'oldest matching events first; inclusive UTC date filters; unknown-time events are excluded when a date filter is present',
       training_preparation: 'prepare-training accepts --as-of YYYY-MM-DD or RFC3339, optional --session PLAN_KEY and comma-separated approved --substitute FROM=TO pairs; it reads a current workspace snapshot without seeding or domain-data writes, though SQLite may create auxiliary WAL/SHM files',
       training_plan: {
-        read: 'training-plan-show --day PLAN_KEY returns the exercises and the SHA-256 revision of the complete plan file',
-        replacement: 'replace-plan-exercise --day PLAN_KEY --exercise SOURCE_KEY --expected-revision REVISION --input-json replaces one entry in place; --duration-limit-minutes sets the selected day limit'
+        read: 'training-plan-show returns plan day keys and the SHA-256 revision of the complete plan file. Add --day PLAN_KEY to inspect exercises and any timed blocks for that day.',
+        replacement: 'replace-plan-exercise --day PLAN_KEY --exercise SOURCE_KEY --expected-revision REVISION --input-json replaces one entry in place; --duration-limit-minutes sets the selected day limit',
+        timed_block: 'set-plan-block (--day PLAN_KEY or --all-days) --expected-revision REVISION --input-json appends a timed block after the exercises or updates the same block_key in place. --all-days saves to every current plan day in one write.'
       },
       idempotency_commands: [
         'log-workout', 'set-working-weight', 'next', 'ingest-daily-state', 'import-personal-file',
         'sync-daily-source', 'ingest-wearable-observations', 'oura-sync-from-token', 'today', 'why', 'weekly-summary',
-        'memory-update', 'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'replace-plan-exercise'
+        'memory-update', 'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', ...TRAINING_PLAN_WRITE_COMMANDS
       ],
       workspace_lock_commands: [
         'init-workspace', 'workspace-migrate', 'log-workout', 'set-working-weight',
         'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file', 'sync-daily-source',
         'oura-sync-from-token', 'today', 'why', 'weekly-summary', 'memory-update',
-        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
+        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', ...TRAINING_PLAN_WRITE_COMMANDS
       ],
       token_lock_commands: ['oura-fetch-day', 'oura-exchange-code', 'oura-refresh-token', 'oura-listen-callback', 'sync-daily-source', 'oura-sync-from-token'],
       external_atomic_write_commands: ['oura-fetch-day', 'sync-daily-source', 'oura-sync-from-token'],
@@ -85,7 +88,7 @@ export function capabilitiesInfo() {
         'init-workspace', 'workspace-migrate', 'log-workout', 'set-working-weight',
         'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file', 'sync-daily-source',
         'oura-sync-from-token', 'today', 'why', 'weekly-summary', 'memory-update',
-        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
+        'memory-context', 'memory-lint', 'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', ...TRAINING_PLAN_WRITE_COMMANDS
       ],
       conditional_writes: {
         'workspace-migrate': 'writes unless --dry-run true',
@@ -130,7 +133,8 @@ export function capabilitiesInfo() {
         'ingest-wearable-observations': 'HealthObservationSet v1 with separate physical_metrics and proprietary_scores arrays',
         'validate-wearable-observations': 'HealthObservationSet v1 with separate physical_metrics and proprietary_scores arrays',
         'context-add': 'HealthEvent v1 object: event_type, occurred, data, source, extraction_version, epistemic_status, uncertainty; schema_version must be 1',
-        'context-correct': 'replacement HealthEvent v1 object; source identity and --event-id must match the active event'
+        'context-correct': 'replacement HealthEvent v1 object; source identity and --event-id must match the active event',
+        'set-plan-block': 'timed block JSON {block_key,block_name,duration_minutes,notes?}; duration_minutes is an integer from 1 to 1440'
       },
       documentation: 'docs/agent-integration-runbook.md'
     },

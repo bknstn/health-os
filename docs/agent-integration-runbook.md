@@ -62,7 +62,7 @@ node src/cli.js capabilities --json
 
 `capabilities` reports the CLI JSON schema version, workspace schema versions, all command names, exact command subsets for JSON stdin, idempotency and lock coordination, conditional external/token writes, supported payload shapes, and output limits. Any listed command accepts `--json`. Success envelopes include `schema_version`, `command`, `ok`, and `data`; failures include `schema_version`, `command`, `ok: false`, and `error`. Either may include `idempotency` or `truncation`. Command failures also use stdout and still exit 1; human-mode errors use stderr. Success output uses stdout in both modes. JSON output is bounded to 256 KiB including the newline; text fields are bounded by code points (12,000 by default), arrays and object keys are limited, and `truncation` identifies clipped values. Profile display has its own `--max-chars` bound and reports returned and total character counts.
 
-For JSON payloads, use `--input-json` with `log-workout`, `ingest-daily-state`, `validate-daily-state`, `ingest-wearable-observations`, `validate-wearable-observations`, `context-add`, or `context-correct`. It reads one bare payload object from stdin, while command options remain flags. Event and observation-ingestion commands require `--input-json` before reading stdin, so a missing flag fails without waiting for input:
+For JSON payloads, use `--input-json` with `log-workout`, `ingest-daily-state`, `validate-daily-state`, `ingest-wearable-observations`, `validate-wearable-observations`, `context-add`, `context-correct`, `replace-plan-exercise`, or `set-plan-block`. It reads one bare payload object from stdin, while command options remain flags. Event, observation-ingestion, and plan edit commands require `--input-json` before reading stdin, so a missing flag fails without waiting for input.
 
 ```bash
 cat normalized-recovery.json | node src/cli.js ingest-daily-state \
@@ -185,6 +185,7 @@ Workspace writes and legacy seed commands:
 - `workspace-migrate`
 - `log-workout`
 - `set-working-weight`
+- `replace-plan-exercise` / `set-plan-block` (revision-guarded plan edits)
 - `memory-update`
 - `ingest-daily-state`
 - `ingest-wearable-observations`
@@ -208,6 +209,7 @@ Read-only, validation, and external fetch commands:
 - `profile-show` (read-only; bounded Markdown view)
 - `profile-validate` (read-only)
 - `prepare-training` (read-only; bounded as-of profile/history/recovery/event/memory context)
+- `training-plan-show` (read-only, requires an existing plan)
 - `connectors`
 - `validate-daily-state`
 - `validate-wearable-observations`
@@ -223,11 +225,29 @@ Version/capability, inspect/profile, validation, `prepare-training`, connector-l
 
 ## Editing a training plan
 
-Read the selected day and copy `data.revision` from the JSON response. The revision hashes the entire current plan file, so an edit to any day makes it stale.
+Run `training-plan-show` to list the plan day keys and get the current revision. Add `--day PLAN_KEY` to inspect a day's exercises, timed blocks, and duration limit. Use `data.revision` as `PLAN_REVISION` in an edit. The revision hashes the entire plan file, so an edit to any day makes it stale.
 
 ```sh
 node src/cli.js training-plan-show --workspace "$WORKSPACE" --day B --json
 ```
+
+Use `set-plan-block` to save a timed block for one day (`--day PLAN_KEY`) or for every current plan day (`--all-days`). New blocks appear after the exercises in the order they were added. Resubmitting the same `block_key` with the current revision updates the block in place on the selected days.
+
+```sh
+node src/cli.js set-plan-block --workspace "$WORKSPACE" --all-days \
+  --expected-revision "$PLAN_REVISION" --idempotency-key plan:cycle:1 --input-json --json <<'JSON'
+{
+  "block_key": "easy_cycle",
+  "block_name": "Easy cycling",
+  "duration_minutes": 12,
+  "notes": "Steady pace."
+}
+JSON
+```
+
+The key starts with a lowercase letter and may contain lowercase letters, digits, and underscores, up to 64 characters. `block_name` is required and limited to 200 characters. `duration_minutes` is an integer from 1 to 1440. Optional `notes` are limited to 500 characters. A plan day can contain up to 20 timed blocks. `set-plan-block` returns the updated day keys in `data.days`.
+
+`prepare-training` exposes the blocks in `data.workout.blocks` and `next` exposes them in `data.blocks` when the selected day has timed blocks. `today` lists them after the exercises. Set and load adjustments apply to the strength exercises. Plan block durations stay as saved. Workout logging keeps its existing strength-exercise payload.
 
 Replace one exercise by its current key. The new entry stays at the same zero-based position. Its key must be unique on that day. The optional duration limit applies to the selected day and is preserved when the option is omitted.
 
@@ -252,7 +272,7 @@ JSON
 
 The replacement requires `exercise_key`, `exercise_name`, `sets`, `reps_min`, `reps_max`, `progression_type`, and `load_tier`. The optional `increment_kg` defaults to zero. Set `load_mode` to `bodyweight` to prescribe bodyweight even when the exercise has weighted history or a configured working weight. `prepare-training` includes the prescribed `rest_seconds` on the exercise and `duration_limit_minutes` on the workout when configured.
 
-A successful write returns `data.status: "saved"` and the resulting revision. An exact retry with the optional idempotency key returns the stored result. On `HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT`, read the plan again and use a new key for any revised request. Both commands require an existing plan. The write checks the revision and atomically replaces `.health-os/config/training-plan.json` under the workspace lock.
+A successful write returns `"saved"` in `data.status` and the resulting revision. An exact retry with the optional idempotency key returns the stored result. On `HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT`, read the plan again and use a new key for any revised request. Plan commands require an existing plan. Each edit checks the revision and atomically replaces `.health-os/config/training-plan.json` under the workspace lock, including when it updates every day.
 
 ## Daily Oura Sync
 

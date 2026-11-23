@@ -823,6 +823,7 @@ function applySubjectiveAdjustments(workout, subjective) {
     mode: workout.mode,
     dayType: workout.dayType,
     ...(workout.duration_limit_minutes !== undefined ? { duration_limit_minutes: workout.duration_limit_minutes } : {}),
+    ...(workout.blocks ? { blocks: workout.blocks } : {}),
     exercises: safeExercises.map((exercise) => ({
       ...exercise,
       scheduled_target_sets: exercise.target_sets,
@@ -849,6 +850,7 @@ function makeHumanOutput(data) {
     const rest = exercise.rest_seconds === undefined ? '' : ` rest_seconds=${exercise.rest_seconds}`;
     lines.push(`${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${weight}${rest}`);
   }
+  for (const block of data.workout.blocks ?? []) lines.push(`${block.block_key}=${block.duration_minutes}min`);
   for (const item of data.subjective.applied) lines.push(`subjective_adjustment=${item.reason} (${item.event_id})`);
   if (data.gaps.length) lines.push(`gaps=${data.gaps.length}`);
   for (const gap of data.gaps.slice(0, 5)) lines.push(`gap=${gap.code}: ${String(gap.detail).slice(0, 240)}`);
@@ -917,6 +919,7 @@ export function prepareTraining(paths, { asOf, explicitSession, substitute } = {
     mode,
     trainingPlan: effectivePlan,
     durationLimit: plan.dayLimits[selection.selected_day_type],
+    blocks: plan.dayBlocks[selection.selected_day_type],
     rules,
     exerciseSettings,
     exerciseLogs

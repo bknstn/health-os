@@ -265,7 +265,7 @@ function computeBaseTarget(planEntry, exerciseLogs, exerciseSettings) {
   return String(lastWeight);
 }
 
-export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingPlan, rules, exerciseSettings, exerciseLogs, durationLimit }) {
+export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingPlan, rules, exerciseSettings, exerciseLogs, durationLimit, blocks = [] }) {
   const exercises = trainingPlan[dayType].map((entry) => {
     const baseTarget = computeBaseTarget(entry, exerciseLogs, exerciseSettings);
     const numericTarget = parseNumber(baseTarget, NaN);
@@ -293,7 +293,8 @@ export function buildWorkoutCard({ dateString, dayType, mode = 'BASE', trainingP
     mode,
     dayType,
     ...(durationLimit !== undefined ? { duration_limit_minutes: durationLimit } : {}),
-    exercises
+    exercises,
+    ...(blocks.length ? { blocks } : {})
   };
 }
 
@@ -312,6 +313,7 @@ export function buildNextWorkout(paths, dateString = localDateString()) {
     mode: currentState?.recommended_mode || 'BASE',
     trainingPlan: plan.days,
     durationLimit: plan.day_limits_minutes?.[dayType],
+    blocks: plan.day_blocks?.[dayType],
     rules,
     exerciseSettings,
     exerciseLogs
@@ -507,6 +509,7 @@ export function renderToday(paths, dateString = localDateString()) {
     const rest = exercise.rest_seconds === undefined ? '' : `, rest ${exercise.rest_seconds} s`;
     lines.push(`• ${exercise.exercise_name}: ${exercise.target_sets}x${exercise.target_reps} @ ${weightText}${rest}`);
   }
+  for (const block of nextWorkout.blocks ?? []) lines.push(`• ${block.block_name}: ${block.duration_minutes} min`);
 
   const output = `${lines.join('\n')}\n`;
   atomicWriteFileSync(paths.todayArtifactFile, output, { encoding: 'utf8' });

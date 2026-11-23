@@ -16,6 +16,7 @@ import {
   digestBytes,
   makeErrorEnvelope,
   makeSuccessEnvelope,
+  TRAINING_PLAN_WRITE_COMMANDS,
   versionInfo
 } from './cli-contract.js';
 import { computeWorkspaceBaselines } from './baselines.js';
@@ -70,7 +71,7 @@ import {
   renderWhy
 } from './engine.js';
 import { validatePreparationAsOf } from './preparation-policy.js';
-import { assertTrainingPlanFile, replacePlanExercise, showTrainingPlan } from './training-plan.js';
+import { assertTrainingPlanFile, replacePlanExercise, setPlanBlock, showTrainingPlan } from './training-plan.js';
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -158,7 +159,7 @@ const WORKSPACE_LOCK_COMMANDS = new Set([
   'log-workout', 'set-working-weight', 'next', 'ingest-daily-state', 'ingest-wearable-observations', 'import-personal-file',
   'sync-daily-source', 'oura-sync-from-token', 'today', 'why', 'weekly-summary',
   'memory-update', 'memory-context', 'memory-lint',
-  'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', 'replace-plan-exercise'
+  'context-add', 'context-correct', 'context-delete', 'context-revalidate-memory', ...TRAINING_PLAN_WRITE_COMMANDS
 ]);
 
 const EVENT_WRITE_COMMANDS = new Set(['context-add', 'context-correct', 'context-delete']);
@@ -174,7 +175,7 @@ function inputCommand(command) {
   return [
     'log-workout', 'ingest-daily-state', 'validate-daily-state',
     'ingest-wearable-observations', 'validate-wearable-observations',
-    'context-add', 'context-correct', 'replace-plan-exercise'
+    'context-add', 'context-correct', ...TRAINING_PLAN_WRITE_COMMANDS
   ].includes(command);
 }
 
@@ -190,7 +191,7 @@ function idempotencyRequest(command, options, inputBytes, importBytes, baselineB
   return {
     command,
     options: normalizedOptions,
-    ...(command === 'replace-plan-exercise' ? {} : { effective_date: effectiveDate }),
+    ...(TRAINING_PLAN_WRITE_COMMANDS.includes(command) ? {} : { effective_date: effectiveDate }),
     ...(inputBytes ? { input_sha256: digestBytes(inputBytes) } : {}),
     ...(importBytes ? { file_sha256: digestBytes(importBytes) } : {}),
     ...(baselineBytes ? { baselines_sha256: digestBytes(baselineBytes) } : {}),
@@ -250,6 +251,7 @@ function printWorkout(nextWorkout) {
     const rest = exercise.rest_seconds === undefined ? '' : ` rest_seconds=${exercise.rest_seconds}`;
     lines.push(`${exercise.exercise_key}=${exercise.target_sets}x${exercise.target_reps}@${weight}${rest}`);
   }
+  for (const block of nextWorkout.blocks ?? []) lines.push(`${block.block_key}=${block.duration_minutes}min`);
   return `${lines.join('\n')}\n`;
 }
 
@@ -329,6 +331,9 @@ async function main() {
   if (options['input-json'] !== undefined && options['input-json'] !== 'true') {
     throw new Error('--input-json is a flag and does not accept a value');
   }
+  if (command === 'set-plan-block' && options['all-days'] !== undefined && options['all-days'] !== 'true') {
+    throw new Error('--all-days is a flag and does not accept a value');
+  }
   if (options['export-token'] !== undefined && !['true', 'false'].includes(options['export-token'])) {
     throw new Error('--export-token accepts only true or false');
   }
@@ -356,8 +361,9 @@ async function main() {
   let inputBytes;
   let preparedInput;
   if (inputCommand(command)) {
-    if (command === 'replace-plan-exercise' && !options['input-json']) {
-      throw new Error('replace-plan-exercise requires --input-json with a bare replacement exercise object on stdin');
+    if (TRAINING_PLAN_WRITE_COMMANDS.includes(command) && !options['input-json']) {
+      const payload = command === 'set-plan-block' ? 'timed block' : 'replacement exercise';
+      throw new Error(`${command} requires --input-json with a bare ${payload} object on stdin`);
     }
     if (EVENT_WRITE_COMMANDS.has(command) && !options['input-json']) {
       throw new Error(`${command} requires --input-json with a bare HealthEvent object on stdin`);
@@ -385,8 +391,8 @@ async function main() {
         : parseWorkoutLog(inputText);
     } else if (EVENT_WRITE_COMMANDS.has(command)) {
       preparedInput = JSON.parse(inputText);
-    } else if (command === 'replace-plan-exercise') {
-      if (inputBytes.byteLength > 16 * 1024) throw new Error('Replacement exercise input exceeds 16384 bytes');
+    } else if (TRAINING_PLAN_WRITE_COMMANDS.includes(command)) {
+      if (inputBytes.byteLength > 16 * 1024) throw new Error('Training plan input exceeds 16384 bytes');
       preparedInput = JSON.parse(inputText);
     } else if ([...OBSERVATION_WRITE_COMMANDS, 'validate-wearable-observations'].includes(command)) {
       preparedInput = validateWearableObservationSet(JSON.parse(inputText));
@@ -394,7 +400,7 @@ async function main() {
       preparedInput = validateRecoveryPayload(JSON.parse(inputText));
     }
   } else if (options['input-json'] !== undefined || options.input !== undefined) {
-    throw new Error('--input and --input-json are only valid for workout/recovery/observation payloads, context-add, context-correct, and replace-plan-exercise');
+    throw new Error(`--input and --input-json are not supported for ${command}`);
   }
 
   let importBytes;
@@ -560,7 +566,7 @@ async function main() {
 
   let releaseWorkspace;
   let releaseOutput;
-  const planCommand = command === 'training-plan-show' || command === 'replace-plan-exercise';
+  const planCommand = command === 'training-plan-show' || TRAINING_PLAN_WRITE_COMMANDS.includes(command);
   if (planCommand) assertTrainingPlanFile(paths);
   try {
     if (WORKSPACE_LOCK_COMMANDS.has(command) || command === 'training-plan-show') {
@@ -634,16 +640,24 @@ async function main() {
         emitResult(result, jsonOutput(result));
         return;
       }
-      case 'replace-plan-exercise': {
+      case 'replace-plan-exercise':
+      case 'set-plan-block': {
         let result;
         try {
-          result = replacePlanExercise(paths, {
+          const planOptions = {
             day: options.day,
-            exercise: options.exercise,
-            replacement: preparedInput,
-            expectedRevision: options['expected-revision'],
-            durationLimit: options['duration-limit-minutes'] === undefined ? undefined : Number(options['duration-limit-minutes'])
-          });
+            expectedRevision: options['expected-revision']
+          };
+          if (command === 'set-plan-block') {
+            result = setPlanBlock(paths, { ...planOptions, allDays: options['all-days'] === 'true', block: preparedInput });
+          } else {
+            result = replacePlanExercise(paths, {
+              ...planOptions,
+              exercise: options.exercise,
+              replacement: preparedInput,
+              durationLimit: options['duration-limit-minutes'] === undefined ? undefined : Number(options['duration-limit-minutes'])
+            });
+          }
         } catch (error) {
           if (activeCliState.idempotency?.status !== 'new' || !error.code?.startsWith('HEALTH_OS_TRAINING_PLAN_')) throw error;
           const message = safeErrorMessage(error, options);

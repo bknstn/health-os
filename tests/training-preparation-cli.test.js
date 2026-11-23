@@ -258,6 +258,86 @@ test('a guarded plan replacement preserves the slot and prepares the explicit bo
   assert.deepEqual(fs.readFileSync(paths.workoutSessionsFile), originalSessions);
 });
 
+test('timed plan blocks are saved for every day and can be updated by key on one day', (t) => {
+  const root = scratch(t);
+  const { workspace, paths } = initWorkspace(t, root);
+  const originalPlan = JSON.parse(fs.readFileSync(paths.trainingPlanFile, 'utf8'));
+  originalPlan.days.C = [];
+  originalPlan.day_limits_minutes = { A: 55 };
+  fs.writeFileSync(paths.trainingPlanFile, JSON.stringify(originalPlan));
+  const originalData = snapshotTree(paths.dataDir);
+  const show = (...args) => envelope(jsonCommand(root, workspace, 'training-plan-show', ...args)).data;
+  const before = show();
+  assert.deepEqual(before.days, ['A', 'B', 'C']);
+  const block = { block_key: 'easy_cycle', block_name: 'Easy cycling', duration_minutes: 12, notes: 'Steady pace.' };
+  const save = (payload, revision, ...args) => {
+    const result = runCli([
+      'set-plan-block', '--json', '--workspace', workspace, '--expected-revision', revision, '--input-json', ...args
+    ], { root, input: JSON.stringify(payload) });
+    return { exit: result.status, ...envelope(result) };
+  };
+
+  const all = ['--all-days', '--idempotency-key', 'synthetic:cycle'];
+  const saved = save(block, before.revision, ...all);
+  assert.equal(saved.exit, 0);
+  assert.equal(saved.data.status, 'saved');
+  assert.deepEqual(saved.data.days, before.days);
+  assert.notEqual(saved.data.revision, before.revision);
+  for (const day of before.days) {
+    const detail = show('--day', day);
+    assert.deepEqual(detail.exercises, originalPlan.days[day]);
+    assert.deepEqual(detail.blocks, [block]);
+    assert.equal(detail.duration_limit_minutes, originalPlan.day_limits_minutes[day] ?? null);
+    assert.equal(detail.revision, saved.data.revision);
+    assert.deepEqual(prepare(root, workspace, AS_OF, ['--session', day]).workout.blocks, [block]);
+  }
+  assert.deepEqual(envelope(jsonCommand(root, workspace, 'next', '--date', AS_OF)).data.blocks, [block]);
+  const next = runCli(['next', '--date', AS_OF, '--workspace', workspace], { root });
+  assert.match(next.stdout, /\neasy_cycle=12min\n$/);
+  const prepared = runCli(['prepare-training', '--as-of', AS_OF, '--session', 'B', '--workspace', workspace], { root });
+  assert.match(prepared.stdout, /^easy_cycle=12min$/m);
+  assert.match(envelope(jsonCommand(root, workspace, 'today', '--date', AS_OF)).data.text, /Easy cycling: 12 min$/m);
+
+  const replay = save(block, before.revision, ...all);
+  assert.equal(replay.idempotency.status, 'replayed');
+  assert.deepEqual(replay.data, saved.data);
+  assert.equal(save(block, before.revision, '--day', 'A').error.code, 'HEALTH_OS_TRAINING_PLAN_REVISION_CONFLICT');
+  assert.equal(save({ ...block, duration_minutes: 0 }, saved.data.revision, '--all-days').exit, 1);
+  assert.equal(save(block, saved.data.revision, '--all-days', '--day', 'A').exit, 1);
+  assert.equal(show().revision, saved.data.revision);
+
+  const second = { block_key: 'mobility', block_name: 'Mobility', duration_minutes: 5 };
+  const appended = save(second, saved.data.revision, '--day', 'B');
+  assert.equal(appended.exit, 0);
+  const updated = { ...block, duration_minutes: 10 };
+  const changed = save(updated, appended.data.revision, '--day', 'B');
+  assert.equal(changed.exit, 0);
+  assert.deepEqual(changed.data.days, ['B']);
+  assert.deepEqual(show('--day', 'B').blocks, [updated, second]);
+  assert.deepEqual(show('--day', 'A').blocks, [block]);
+  assert.deepEqual(snapshotTree(paths.dataDir), originalData);
+});
+
+test('an all-days block edit leaves the plan untouched when one day has reached the block limit', (t) => {
+  const root = scratch(t);
+  const { workspace, paths } = initWorkspace(t, root);
+  const plan = JSON.parse(fs.readFileSync(paths.trainingPlanFile, 'utf8'));
+  plan.day_blocks = {
+    B: Array.from({ length: 20 }, (_, index) => ({
+      block_key: `block_${index}`, block_name: `Block ${index}`, duration_minutes: 1
+    }))
+  };
+  const original = JSON.stringify(plan);
+  fs.writeFileSync(paths.trainingPlanFile, original);
+  const { revision } = envelope(jsonCommand(root, workspace, 'training-plan-show')).data;
+  const result = runCli([
+    'set-plan-block', '--json', '--workspace', workspace, '--expected-revision', revision, '--input-json', '--all-days'
+  ], { root, input: JSON.stringify({ block_key: 'mobility', block_name: 'Mobility', duration_minutes: 5 }) });
+  assert.equal(result.status, 1);
+  assert.equal(envelope(result).error.code, 'HEALTH_OS_TRAINING_PLAN_INVALID');
+  assert.equal(fs.readFileSync(paths.trainingPlanFile, 'utf8'), original);
+});
+
 function wearableSet({ date, observedAt, readiness = 80, sleep = 78, hrv = 50, restingHr = 55, scoreAt = observedAt }) {
   const metric = (name, value, unit, timestamp) => ({
     metric: name, status: 'observed', value, unit,
